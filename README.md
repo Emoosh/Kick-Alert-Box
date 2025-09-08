@@ -1,33 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kick Alert Box
 
-## Getting Started
+This project implements OAuth authentication with Kick.com using the openid-client library. Users can login with their Kick account and grant access to your application.
 
-First, run the development server:
+## Setup
+
+1. Register your application on Kick.com's developer portal to get your client ID and client secret.
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Create a `.env.local` file with your Kick credentials:
+
+```
+KICK_CLIENT_ID=your_client_id_from_kick
+KICK_CLIENT_SECRET=your_client_secret_from_kick
+KICK_REDIRECT_URI=http://localhost:3000/api/auth/callback
+```
+
+4. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000) to see your application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## OAuth Flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The OAuth flow implemented in this application follows these steps:
+
+1. User clicks "Connect with Kick" button
+2. User is redirected to Kick's authorization page
+3. User approves the permissions
+4. Kick redirects back to your application's callback URL
+5. Your application exchanges the authorization code for an access token
+6. User is now authenticated and can use Kick API features
+
+## API Usage
+
+After authentication, you can use the Kick API with the obtained access token:
+
+```typescript
+import { getCurrentUser } from "@/lib/kick-api";
+
+// In a server component or API route
+const accessToken = cookies().get("access_token")?.value;
+if (accessToken) {
+  const userData = await getCurrentUser(accessToken);
+  console.log(userData);
+}
+```
+
+## Files Structure
+
+- `src/lib/kick-oauth.ts` - OAuth client setup and token handling
+- `src/lib/kick-api.ts` - API helper functions to call Kick endpoints
+- `src/app/api/auth/login/route.ts` - Login route to start OAuth flow
+- `src/app/api/auth/callback/route.ts` - Callback route to handle OAuth redirect
+- `src/app/api/auth/logout/route.ts` - Logout route to clear tokens
+- `src/app/page.tsx` - Home page with login/logout buttons
+
+## Security Considerations
+
+- This implementation uses PKCE (Proof Key for Code Exchange) for enhanced security
+- Tokens are stored in HTTP-only cookies
+- Remember to validate all user input and API responses
+- Consider implementing token refresh mechanism for production use
 
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [openid-client](https://github.com/panva/openid-client) - the OAuth library used in this project.
 
 ## Deploy on Vercel
 
