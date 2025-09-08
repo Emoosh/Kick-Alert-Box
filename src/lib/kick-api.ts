@@ -1,4 +1,6 @@
-const KICK_API_URL = "https://kick.com/api/v1";
+const KICK_API_URL = "https://api.kick.com/public/v1";
+const KICK_TOKEN_INTROSPECT_ENDPOINT = "/token/introspect";
+const KICK_USERS_ENDPOINT = "/users";
 
 /**
  * Fetch data from Kick API with authentication token
@@ -8,9 +10,7 @@ export async function fetchFromKick(
   accessToken: string,
   options: RequestInit = {}
 ) {
-  const url = `${KICK_API_URL}${
-    endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-  }`;
+  const url = `${KICK_API_URL}${endpoint}`;
 
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -39,7 +39,9 @@ export async function fetchFromKick(
  * Get authenticated user information
  */
 export async function getCurrentUser(accessToken: string) {
-  return fetchFromKick("/user", accessToken);
+  const user = await fetchFromKick(KICK_USERS_ENDPOINT, accessToken);
+  //  console.log("Fetched user_id:", user.data[0].user_id);
+  return user;
 }
 
 /**

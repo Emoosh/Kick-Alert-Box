@@ -219,6 +219,7 @@ export async function handleCallback(
             .replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3'); // Ensure property names are quoted
 
           const parsedResponse = JSON.parse(cleanedResponse);
+          console.log(parsedResponse);
           console.log("Successfully parsed token response");
           return parsedResponse;
         } catch (robustJsonError) {
