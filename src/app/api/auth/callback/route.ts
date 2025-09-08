@@ -4,20 +4,20 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    console.log("Callback URL:", url.toString());
+    // console.log("Callback URL:", url.toString());
 
     // Log the query parameters
     const params = new URLSearchParams(url.search);
-    console.log("Callback params:", {
-      code: params.get("code")
-        ? `${params.get("code")?.substring(0, 5)}...`
-        : "missing",
-      state: params.get("state")
-        ? `${params.get("state")?.substring(0, 5)}...`
-        : "missing",
-      error: params.get("error"),
-      errorDescription: params.get("error_description"),
-    });
+    // console.log("Callback params:", {
+    //   code: params.get("code")
+    //     ? `${params.get("code")?.substring(0, 5)}...`
+    //     : "missing",
+    //   state: params.get("state")
+    //     ? `${params.get("state")?.substring(0, 5)}...`
+    //     : "missing",
+    //   error: params.get("error"),
+    //   errorDescription: params.get("error_description"),
+    // });
 
     // Check for OAuth error parameters
     if (params.get("error")) {
@@ -34,11 +34,11 @@ export async function GET(request: NextRequest) {
     const code_verifier = request.cookies.get("code_verifier")?.value;
     const state = request.cookies.get("state")?.value;
 
-    console.log("Cookie values:", {
-      codeVerifierPresent: !!code_verifier,
-      statePresent: !!state,
-      codeVerifierLength: code_verifier?.length,
-    });
+    // console.log("Cookie values:", {
+    //   codeVerifierPresent: !!code_verifier,
+    //   statePresent: !!state,
+    //   codeVerifierLength: code_verifier?.length,
+    // });
 
     if (!code_verifier || !state) {
       return NextResponse.json(
@@ -89,11 +89,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Log detailed information for debugging
-    console.log("URL params:", request.url);
+    // console.log("URL params:", request.url);
     const cv = request.cookies.get("code_verifier")?.value;
     const st = request.cookies.get("state")?.value;
-    console.log("Code verifier length:", cv?.length);
-    console.log("State value present:", !!st);
+    // console.log("Code verifier length:", cv?.length);
+    // console.log("State value present:", !!st);
 
     // Create a debug page with detailed error info instead of just JSON
     const htmlResponse = `

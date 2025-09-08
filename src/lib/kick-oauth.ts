@@ -11,13 +11,13 @@ const KICK_AUTH_URL = `${KICK_BASE_URL}/oauth/authorize`;
 const KICK_TOKEN_URL = `${KICK_BASE_URL}/oauth/token`;
 
 // Debug configuration
-console.log("OAuth Configuration:", {
-  clientIdLength: KICK_CLIENT_ID?.length,
-  clientSecretLength: KICK_CLIENT_SECRET?.length,
-  redirectUri: KICK_REDIRECT_URI,
-  authUrl: KICK_AUTH_URL,
-  tokenUrl: KICK_TOKEN_URL,
-});
+// console.log("OAuth Configuration:", {
+//   clientIdLength: KICK_CLIENT_ID?.length,
+//   clientSecretLength: KICK_CLIENT_SECRET?.length,
+//   redirectUri: KICK_REDIRECT_URI,
+//   authUrl: KICK_AUTH_URL,
+//   tokenUrl: KICK_TOKEN_URL,
+// });
 
 /**
  * Generate random PKCE code verifier
@@ -39,6 +39,8 @@ async function calculatePKCECodeChallenge(verifier: string): Promise<string> {
 
 /**
  * Generate random state
+ * No matter what the State is, we generate a new one each time
+ * to ensure maximum security against CSRF attacks.
  */
 function randomState(): string {
   return base64URLEncode(crypto.randomBytes(16));
@@ -46,6 +48,7 @@ function randomState(): string {
 
 /**
  * Base64URL encoding
+ * This is a common utility function for OAuth PKCE
  */
 function base64URLEncode(buffer: Uint8Array): string {
   return Buffer.from(buffer)
@@ -73,12 +76,15 @@ export async function createAuthorizationUrl(): Promise<{
   authUrl.searchParams.append("client_id", KICK_CLIENT_ID);
   authUrl.searchParams.append("redirect_uri", KICK_REDIRECT_URI);
   authUrl.searchParams.append("response_type", "code");
-  authUrl.searchParams.append("scope", "user:read channel:read");
+  authUrl.searchParams.append(
+    "scope",
+    "user:read channel:read channel:write chat:write streamkey:read moderation:ban"
+  );
   authUrl.searchParams.append("code_challenge", code_challenge);
   authUrl.searchParams.append("code_challenge_method", "S256");
   authUrl.searchParams.append("state", state);
 
-  console.log("Generated authorization URL:", authUrl.toString());
+  // console.log("Generated authorization URL:", authUrl.toString());
 
   return {
     url: authUrl,
@@ -114,16 +120,12 @@ export async function handleCallback(
   // Exchange code for token manually
   try {
     // Log info for debugging
-    console.log("Exchanging code for token with:");
-    console.log("- Code:", code ? `${code.substring(0, 5)}...` : "missing");
-    console.log("- Code verifier length:", code_verifier.length);
-    console.log("- State match:", returnedState === state);
-    console.log("- Redirect URI:", KICK_REDIRECT_URI);
+    // console.log("Exchanging code for token with:");
+    // console.log("- Code:", code ? `${code.substring(0, 5)}...` : "missing");
+    // console.log("- Code verifier length:", code_verifier.length);
+    // console.log("- State match:", returnedState === state);
+    // console.log("- Redirect URI:", KICK_REDIRECT_URI);
 
-    // Try the token exchange with different parameter formats
-    // Some OAuth providers have different requirements
-
-    // Standard OAuth 2.0 approach
     const tokenRequestBody = new URLSearchParams({
       grant_type: "authorization_code",
       client_id: KICK_CLIENT_ID,
@@ -133,7 +135,7 @@ export async function handleCallback(
       code_verifier: code_verifier,
     }).toString();
 
-    console.log("Sending token request to:", KICK_TOKEN_URL);
+    // console.log("Sending token request to:", KICK_TOKEN_URL);
 
     // Try with application/x-www-form-urlencoded content type (most common)
     let tokenResponse = await fetch(KICK_TOKEN_URL, {
@@ -148,43 +150,47 @@ export async function handleCallback(
       body: tokenRequestBody,
     });
 
-    // If first attempt fails with 415 (Unsupported Media Type), try with application/json
-    if (tokenResponse.status === 415) {
-      console.log("Retrying with application/json content type");
-      tokenResponse = await fetch(KICK_TOKEN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          grant_type: "authorization_code",
-          client_id: KICK_CLIENT_ID,
-          client_secret: KICK_CLIENT_SECRET,
-          code: code,
-          redirect_uri: KICK_REDIRECT_URI,
-          code_verifier: code_verifier,
-        }),
-      });
-    }
+    // // If first attempt fails with 415 (Unsupported Media Type), try with application/json
+    // if (tokenResponse.status === 415) {
+    //   console.log("Retrying with application/json content type");
+    //   tokenResponse = await fetch(KICK_TOKEN_URL, {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Accept: "application/json",
+    //     },
+    //     body: JSON.stringify({
+    //       grant_type: "authorization_code",
+    //       client_id: KICK_CLIENT_ID,
+    //       client_secret: KICK_CLIENT_SECRET,
+    //       code: code,
+    //       redirect_uri: KICK_REDIRECT_URI,
+    //       code_verifier: code_verifier,
+    //     }),
+    //   });
+    // }
 
     const responseData = await tokenResponse.text();
-    console.log("Response status:", tokenResponse.status);
+    console.log("Oauth response status:", tokenResponse.status);
 
     // Log first 100 chars of response for debugging
-    if (responseData) {
-      console.log(
-        "Response preview:",
-        responseData.substring(0, 100) +
-          (responseData.length > 100 ? "..." : "")
-      );
-    }
+    // if (responseData) {
+    //   console.log(
+    //     "Response preview:",
+    //     responseData.substring(0, 100) +
+    //       (responseData.length > 100 ? "..." : "")
+    //   );
+    // }
+
+    // if (responseData) {
+    //   console.log("Response Data: ", responseData);
+    // }
 
     if (!tokenResponse.ok) {
       console.error("Token endpoint error:", {
         status: tokenResponse.status,
         statusText: tokenResponse.statusText,
-        response: responseData.substring(0, 500), // Limit to first 500 chars to avoid huge logs
+        response: responseData.substring(0, 500),
       });
       throw new Error(
         `Token endpoint returned ${tokenResponse.status}: ${responseData}`
