@@ -138,7 +138,7 @@ export async function handleCallback(
     // console.log("Sending token request to:", KICK_TOKEN_URL);
 
     // Try with application/x-www-form-urlencoded content type (most common)
-    let tokenResponse = await fetch(KICK_TOKEN_URL, {
+    const tokenResponse = await fetch(KICK_TOKEN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -219,8 +219,8 @@ export async function handleCallback(
             .replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3'); // Ensure property names are quoted
 
           const parsedResponse = JSON.parse(cleanedResponse);
-          console.log(parsedResponse);
-          console.log("Successfully parsed token response");
+          // console.log(parsedResponse);
+          // console.log("Successfully parsed token response");
           return parsedResponse;
         } catch (robustJsonError) {
           console.error("Failed robust JSON parsing attempt:", robustJsonError);
