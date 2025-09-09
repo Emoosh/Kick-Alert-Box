@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/kick-api";
+import { getCurrentUser, tokenIntrospect } from "@/lib/kick-api";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,8 +11,25 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    const tokenIntrospectResponse = await tokenIntrospect(accessToken);
+
+    if (!tokenIntrospectResponse) {
+      return NextResponse.json(
+        { error: "Failed to introspect token" },
+        { status: 401 }
+      );
+    }
+    const tokenInformation = {
+      active: tokenIntrospectResponse.data.active,
+      client_id: tokenIntrospectResponse.data.client_id,
+      exp: tokenIntrospectResponse.data.exp,
+      scope: tokenIntrospectResponse.data.scope,
+      token_type: tokenIntrospectResponse.data.token_type,
+    };
 
     const user = await getCurrentUser(accessToken);
+
+    user.tokenInfo = tokenInformation;
 
     return NextResponse.json({ user });
   } catch (error) {

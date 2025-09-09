@@ -1,6 +1,8 @@
 const KICK_API_URL = "https://api.kick.com/public/v1";
 const KICK_TOKEN_INTROSPECT_ENDPOINT = "/token/introspect";
 const KICK_USERS_ENDPOINT = "/users";
+const KICK_CHANNELS_ENDPOINT = "/channels";
+const KICK_PATCH_CHANNELS_ENDPOINT = "/channels";
 
 /**
  * Fetch data from Kick API with authentication token
@@ -27,8 +29,13 @@ export async function fetchFromKick(
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
     }
-
-    return await response.json();
+    const text = await response.text();
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch (error) {
+      console.error("JSON parse error:", error);
+      return null;
+    }
   } catch (error) {
     console.error("Error fetching from Kick API:", error);
     throw error;
@@ -44,13 +51,50 @@ export async function getCurrentUser(accessToken: string) {
   return user;
 }
 
+export async function tokenIntrospect(accessToken: string) {
+  const introspect = await fetchFromKick(
+    KICK_TOKEN_INTROSPECT_ENDPOINT,
+    accessToken,
+    { method: "POST" }
+  );
+  return introspect;
+}
+
 /**
  * Get channel information
  */
-export async function getChannelInfo(channelName: string, accessToken: string) {
-  return fetchFromKick(`/channels/${channelName}`, accessToken);
+
+export async function getCurrentChannelInfo(access_token: string) {
+  return fetchFromKick(KICK_CHANNELS_ENDPOINT, access_token, {
+    method: "GET",
+  });
 }
 
+/**
+ * Updates livestream metadata for a channel.
+ */
+
+export async function updateChannelInfo(
+  access_token: string,
+  category_id?: number,
+  custom_tags?: string[],
+  stream_title?: string
+) {
+  const body: any = {};
+  if (category_id !== undefined) body.category_id = category_id;
+  if (custom_tags !== undefined) body.custom_tags = custom_tags;
+  if (stream_title !== undefined) body.stream_title = stream_title;
+
+  try {
+    return fetchFromKick(KICK_PATCH_CHANNELS_ENDPOINT, access_token, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error("Error updating channel info:", error);
+    throw error;
+  }
+}
 /**
  * Get channel followers
  */
