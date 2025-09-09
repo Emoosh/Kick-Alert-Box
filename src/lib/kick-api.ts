@@ -74,13 +74,19 @@ export async function getCurrentChannelInfo(access_token: string) {
  * Updates livestream metadata for a channel.
  */
 
+interface UpdateChannelBody {
+  category_id?: number;
+  custom_tags?: string[];
+  stream_title?: string;
+}
+
 export async function updateChannelInfo(
   access_token: string,
   category_id?: number,
   custom_tags?: string[],
   stream_title?: string
 ) {
-  const body: any = {};
+  const body: UpdateChannelBody = {};
   if (category_id !== undefined) body.category_id = category_id;
   if (custom_tags !== undefined) body.custom_tags = custom_tags;
   if (stream_title !== undefined) body.stream_title = stream_title;
@@ -95,6 +101,7 @@ export async function updateChannelInfo(
     throw error;
   }
 }
+
 /**
  * Get channel followers
  */
