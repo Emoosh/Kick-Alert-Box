@@ -78,7 +78,7 @@ export async function createAuthorizationUrl(): Promise<{
   authUrl.searchParams.append("response_type", "code");
   authUrl.searchParams.append(
     "scope",
-    "user:read channel:read channel:write chat:write streamkey:read moderation:ban"
+    "user:read channel:read channel:write chat:write streamkey:read moderation:ban events:subscribe"
   );
   authUrl.searchParams.append("code_challenge", code_challenge);
   authUrl.searchParams.append("code_challenge_method", "S256");
@@ -182,9 +182,10 @@ export async function handleCallback(
     //   );
     // }
 
-    // if (responseData) {
-    //   console.log("Response Data: ", responseData);
-    // }
+    // token response
+    if (responseData) {
+      console.log("Response Data: ", responseData);
+    }
 
     if (!tokenResponse.ok) {
       console.error("Token endpoint error:", {
