@@ -4,7 +4,11 @@ import {
   kickPublicKey,
   parsePublicKey,
 } from "@/lib/webhook/verify-webhook";
-import { handleChannelFollow } from "@/lib/webhook/webhook-handlers/channelFollow";
+import {
+  handleChannelFollow,
+  handleNewSubscription,
+  handleSubscriptionRenewal,
+} from "@/lib/webhook/webhook-handlers/webhookHandlers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,12 +76,15 @@ export async function POST(request: NextRequest) {
         break;
       case "channel.subscription.renewal":
         //
+        console.log("Channel subscription renewal event received");
+        await handleSubscriptionRenewal(jsonBody);
         break;
       case "channel.subscription.gifts":
         //
         break;
       case "channel.subscription.new":
-        //
+        console.log("New subscription event received");
+        await handleNewSubscription(jsonBody);
         break;
       case "livestream.status.updated":
         // It has two types.

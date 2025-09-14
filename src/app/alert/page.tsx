@@ -1,8 +1,18 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export default function AlertPage() {
-  const [follower, setFollower] = useState<string | null>(null);
+type AlertType = "follow" | "subscribe" | "subscriptionRenewal";
+
+interface AlertData {
+  alertType: AlertType;
+  username: string;
+  message?: string;
+  amount?: number;
+  months?: number;
+}
+
+export default function AlertsPage() {
+  const [alertData, setAlertData] = useState<AlertData | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -13,21 +23,16 @@ export default function AlertPage() {
     };
 
     ws.onmessage = (event) => {
-      console.log("Received data:", event.data);
       try {
         const data = JSON.parse(event.data);
-        console.log("Parsed data:", data);
+        console.log("Received alert:", data);
 
-        // State'i güncelle
-        setFollower(data.username);
+        setAlertData(data);
         setVisible(true);
 
-        console.log("Setting visible=true and follower=", data.username);
-
-        // 5 saniye sonra kapat
         setTimeout(() => {
-          console.log("Setting visible=false");
           setVisible(false);
+          setTimeout(() => setAlertData(null), 500);
         }, 5000);
       } catch (error) {
         console.error("Error parsing WebSocket data:", error);
@@ -37,34 +42,64 @@ export default function AlertPage() {
     return () => ws.close();
   }, []);
 
-  // Görünür bir stil kullan
-  const alertStyle = {
+  const alertContainerStyle = {
     position: "fixed" as const,
     top: "50%",
     left: "50%",
     transform: "translate(-50%, -50%)",
     padding: "30px",
     backgroundColor: "rgba(0, 0, 0, 0.8)",
-    border: "5px solid #ff5500",
     borderRadius: "10px",
     color: "white",
     fontSize: "2rem",
     textAlign: "center" as const,
     zIndex: 1000,
-    display: visible ? "block" : "none", // visible state'e göre göster/gizle
+    opacity: visible ? 1 : 0,
+    transition: "opacity 0.5s ease",
   };
 
-  // Debug göster
+  const renderAlertContent = () => {
+    if (!alertData) return null;
+
+    switch (alertData.alertType) {
+      case "follow":
+        return (
+          <div style={{ ...alertContainerStyle, border: "5px solid #ff5500" }}>
+            <h1 style={{ color: "#ff5500" }}>
+              {alertData.username} seni takip etti!
+            </h1>
+          </div>
+        );
+
+      case "subscribe":
+        return (
+          <div style={{ ...alertContainerStyle, border: "5px solid #00aaff" }}>
+            <h1 style={{ color: "#00aaff" }}>
+              {alertData.username} abone oldu!
+            </h1>
+            {alertData.months && <p>{alertData.months}. ay!</p>}
+          </div>
+        );
+
+      case "subscriptionRenewal":
+        return (
+          <div style={{ ...alertContainerStyle, border: "5px solid #ff00aa" }}>
+            <h1 style={{ color: "#ff00aa" }}>
+              {alertData.username} aboneliğini yeniledi!
+            </h1>
+            <p>{alertData.amount} TL</p>
+            {alertData.message && <p>"{alertData.message}"</p>}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div
-      style={{ width: "100%", height: "100vh", position: "relative" as const }}
-    >
-      {/* Alert */}
-      <div style={alertStyle}>
-        {follower && (
-          <h1 style={{ color: "#ff5500" }}>{follower} seni takip etti!</h1>
-        )}
-      </div>
+    <div style={{ width: "100%", height: "100vh" }}>
+      {renderAlertContent()}
 
       {/* Debug bilgisi */}
       <div
@@ -76,8 +111,8 @@ export default function AlertPage() {
           color: "gray",
         }}
       >
-        WebSocket: Bağlı | Follower: {follower || "Yok"} | Visible:{" "}
-        {visible ? "Evet" : "Hayır"}
+        WebSocket: Bağlı | Alert: {alertData?.type || "Yok"} | User:{" "}
+        {alertData?.username || "Yok"} | Visible: {visible ? "Evet" : "Hayır"}
       </div>
     </div>
   );
