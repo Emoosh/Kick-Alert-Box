@@ -3,14 +3,12 @@ import {
   verifyWebhookSignature,
   kickPublicKey,
   parsePublicKey,
-} from "@/lib/verify-webhook";
+} from "@/lib/webhook/verify-webhook";
+import { handleChannelFollow } from "@/lib/webhook/webhook-handlers/channelFollow";
 
-import { sendFollowerAlert } from "../../../../ws-server";
-import { start } from "repl";
 export async function POST(request: NextRequest) {
   try {
     const requestClone = request.clone();
-
     const eventMessageId = request.headers.get("Kick-Event-Message-Id");
     const eventSubscriptionId = request.headers.get(
       "Kick-Event-Subscription-Id"
@@ -59,23 +57,38 @@ export async function POST(request: NextRequest) {
     console.log("Received valid webhook:", jsonBody);
 
     // TODO: Webhook event'ini handle edin (örneğin, yayın başladı, bitti, vb.)
-    // jsonBody.type veya jsonBody.event gibi alanları kontrol edebilirsiniz
 
-    // const accessToken = request.cookies.get("access_token")?.value;
+    // WebHook handlers
+    console.log("event type: ", eventType);
 
-    // if (!accessToken) {
-    //   return NextResponse.json(
-    //     { error: "No access token found" },
-    //     { status: 401 }
-    //   );
-    // }
-    // await startAlertSystem(accessToken, [
-    //   {
-    //     name: "chat.message.sent",
-    //     version: 1,
-    //   },
-    // ]);
-
+    switch (eventType) {
+      case "chat.message.sent":
+        console.log("Chat message event received");
+        //
+        break;
+      case "channel.followed":
+        console.log("Channel followed event received");
+        await handleChannelFollow(jsonBody);
+        break;
+      case "channel.subscription.renewal":
+        //
+        break;
+      case "channel.subscription.gifts":
+        //
+        break;
+      case "channel.subscription.new":
+        //
+        break;
+      case "livestream.status.updated":
+        // It has two types.
+        break;
+      case "livestream.metadata.updated":
+        //
+        break;
+      case "moderation.banned":
+        //
+        break;
+    }
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Error processing webhook:", error);

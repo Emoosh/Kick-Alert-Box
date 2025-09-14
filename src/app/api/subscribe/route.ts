@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { startAlertSystem } from "@/lib/webhook-handlers/subscribe-events";
-import { getSubscription } from "@/lib/webhook-handlers/get-subscriptions";
-import { get } from "http";
-import { deleteSubscription } from "@/lib/webhook-handlers/delete-subscription";
+import { startAlertSystem } from "@/lib/webhook/webhook-starters/subscribe-events";
+import { getSubscription } from "@/lib/webhook/webhook-starters/get-subscriptions";
+import { deleteSubscription } from "@/lib/webhook/webhook-starters/delete-subscription";
 
 export async function POST(request: NextRequest) {
   const { events } = await request.json();
@@ -34,6 +33,11 @@ export async function GET(request: NextRequest) {
   return response;
 }
 
+/**
+ * @param request
+ * @events: Array of event objects containing IDs to be deleted
+ * @returns response from deleteSubscription function
+ */
 export async function DELETE(request: NextRequest) {
   const accessToken = request.cookies.get("access_token")?.value;
   const { events } = await request.json();

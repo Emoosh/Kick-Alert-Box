@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { baseUrlForEvents } from "@/lib/webhook-handlers/get-subscriptions";
+import { baseUrlForEvents } from "@/lib/webhook/webhook-starters/get-subscriptions";
 
 export async function deleteSubscription(access_token: string, id: string[]) {
   if (!access_token) {

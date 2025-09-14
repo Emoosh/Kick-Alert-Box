@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/kick-api";
-import { baseUrlForEvents } from "@/lib/webhook-handlers/get-subscriptions";
+import { baseUrlForEvents } from "@/lib/webhook/webhook-starters/get-subscriptions";
 
 type event = {
   name: string;
