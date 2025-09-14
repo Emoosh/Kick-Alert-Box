@@ -5,11 +5,12 @@ import {
   parsePublicKey,
 } from "@/lib/verify-webhook";
 
+import { sendFollowerAlert } from "../../../../ws-server";
+import { start } from "repl";
 export async function POST(request: NextRequest) {
   try {
     const requestClone = request.clone();
 
-    // Header'lardan gerekli değerleri alın
     const eventMessageId = request.headers.get("Kick-Event-Message-Id");
     const eventSubscriptionId = request.headers.get(
       "Kick-Event-Subscription-Id"
@@ -20,8 +21,6 @@ export async function POST(request: NextRequest) {
     );
     const eventType = request.headers.get("Kick-Event-Type");
     const eventVersion = request.headers.get("Kick-Event-Version");
-
-    // Gerekli başlık değerlerinin varlığını kontrol edin
 
     if (
       !eventMessageId ||
@@ -37,18 +36,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //const kickPublicKey = await fetchKickWebhookPublicKey();
-
-    // Taking it as a string is important because if it proceeds Json and then stringify it will change the body and the signature will not match.
     const body = await requestClone.text();
 
-    // const signature = `${eventMessageId}.${eventMessageTimestamp}.${body}`;
-    // const signatureBuffer = Buffer.from(signature, "utf8");
-
-    // Kick public key'ini parse edin
     const publicKey = parsePublicKey(kickPublicKey);
 
-    // İmzayı doğrulayın
     const isValid = verifyWebhookSignature(
       publicKey,
       body,
@@ -69,6 +60,21 @@ export async function POST(request: NextRequest) {
 
     // TODO: Webhook event'ini handle edin (örneğin, yayın başladı, bitti, vb.)
     // jsonBody.type veya jsonBody.event gibi alanları kontrol edebilirsiniz
+
+    // const accessToken = request.cookies.get("access_token")?.value;
+
+    // if (!accessToken) {
+    //   return NextResponse.json(
+    //     { error: "No access token found" },
+    //     { status: 401 }
+    //   );
+    // }
+    // await startAlertSystem(accessToken, [
+    //   {
+    //     name: "chat.message.sent",
+    //     version: 1,
+    //   },
+    // ]);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

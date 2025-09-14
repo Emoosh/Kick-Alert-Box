@@ -54,8 +54,14 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(new URL("/", request.url));
 
     // Clear auth cookies
-    response.cookies.set("code_verifier", "", { maxAge: 0, path: "/" });
-    response.cookies.set("state", "", { maxAge: 0, path: "/" });
+    response.cookies.set("code_verifier", "", {
+      maxAge: 0,
+      path: "/",
+    });
+    response.cookies.set("state", "", {
+      maxAge: 0,
+      path: "/",
+    });
 
     // Store the access token in a cookie (you might want to store in a more secure way)
     response.cookies.set("access_token", tokens.access_token, {

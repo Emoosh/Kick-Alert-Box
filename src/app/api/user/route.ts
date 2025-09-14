@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
 
+    console.log("Access Token:", accessToken);
     if (!accessToken) {
       return NextResponse.json(
         { error: "No access token found" },

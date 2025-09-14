@@ -20,6 +20,8 @@ export async function fetchFromKick(
     ...options.headers,
   };
 
+  console.log("Fetching from Kick API:", url);
+  console.log("With options:", { ...options, headers });
   try {
     const response = await fetch(url, {
       ...options,
