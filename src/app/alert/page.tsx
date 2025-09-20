@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 type AlertType = "follow" | "subscribe" | "subscriptionRenewal";
 
 interface AlertData {
-  alertType: AlertType;
+  id: string;
+  type: AlertType;
   username: string;
+  userId: number;
+  broadcasterId?: number;
+  timestamp: number;
   message?: string;
   amount?: number;
   months?: number;
@@ -61,7 +65,7 @@ export default function AlertsPage() {
   const renderAlertContent = () => {
     if (!alertData) return null;
 
-    switch (alertData.alertType) {
+    switch (alertData.type) {
       case "follow":
         return (
           <div style={{ ...alertContainerStyle, border: "5px solid #ff5500" }}>

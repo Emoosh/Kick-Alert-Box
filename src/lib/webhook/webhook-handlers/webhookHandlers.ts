@@ -1,38 +1,59 @@
-import {
-  sendFollowerAlert,
-  sendNewSubscriberAlert,
-  sendSubscriptionRenewalAlert,
-} from "../../../../ws-server";
+import { broadcastAlert } from "../../../../ws-server";
 
-export async function handleChannelFollow(data: any) {
-  const followerName = data.follower.username;
+import { getRedisClient } from "../../redis/redis";
+import { v4 as uuidv4 } from "uuid";
 
-  // WebSocket'e veri gönder
-  sendFollowerAlert({
-    alertType: "follow",
+export async function handleChannelFollow(input_data: any) {
+  const followerId = input_data.follower.user_id;
+  const followerName = input_data.follower.username;
+  const broadcasterId = input_data.broadcaster.user_id;
+
+  const redis = getRedisClient();
+  const alertId = `alert_${uuidv4()}`;
+  const queueItem = {
+    id: alertId,
+    type: "follow",
     username: followerName,
-    message: "New follow!",
-  });
+    userId: followerId,
+    broadcasterId: broadcasterId,
+    timestamp: Date.now(),
+  };
+  await redis.lpush(`alert_queue:${broadcasterId}`, alertId);
+  await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
+  await redis.lpush("alert_queue", alertId);
 
-  console.log(`New follower: ${followerName}`);
+  console.log(`"Webhook handler - New follower: ${followerName}`);
 }
 
-export async function handleNewSubscription(data: any) {
-  const subscriberName = data.subscriber.username;
+export async function handleNewSubscription(input_data: any) {
+  const subscriberName = input_data.subscriber.username;
 
-  sendNewSubscriberAlert({
-    alertType: "subscribe",
-    username: subscriberName,
-  });
+  const redis = getRedisClient();
+  const alertId = `alert_${uuidv4()}`;
+  const queueItem = {
+    id: alertId,
+    type: "subscribe",
+    data: input_data,
+    timestamp: Date.now(),
+    processed: false,
+  };
+  await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
+  await redis.lpush("alert_queue", alertId);
 }
 
-export async function handleSubscriptionRenewal(data: any) {
-  const subscriberName = data.subscriber.username;
-  const duration = data.duration;
+export async function handleSubscriptionRenewal(input_data: any) {
+  const subscriberName = input_data.subscriber.username;
+  const duration = input_data.duration;
 
-  sendSubscriptionRenewalAlert({
-    alertType: "subscriptionRenewal",
-    username: subscriberName,
-    duration: duration,
-  });
+  const redis = getRedisClient();
+  const alertId = `alert_${uuidv4()}`;
+  const queueItem = {
+    id: alertId,
+    type: "subscriptionRenewal",
+    data: input_data,
+    timestamp: Date.now(),
+    processed: false,
+  };
+  await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
+  await redis.lpush("alert_queue", alertId);
 }
