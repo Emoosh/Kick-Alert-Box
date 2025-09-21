@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 type AlertType = "follow" | "subscribe" | "subscriptionRenewal";
 
@@ -15,12 +15,18 @@ interface AlertData {
   months?: number;
 }
 
-export default function AlertsPage() {
+export default function AlertsPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = use(params);
+
   const [alertData, setAlertData] = useState<AlertData | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:4001");
+    const ws = new WebSocket(`ws://localhost:4001?broadcasterId=${slug}`);
 
     ws.onopen = () => {
       console.log("Connected to WebSocket server");
