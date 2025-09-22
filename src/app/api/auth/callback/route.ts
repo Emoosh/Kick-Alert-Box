@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       path: "/",
     });
 
-    // Store the access token in a cookie (you might want to store in a more secure way)
+    // This is only in development, in production the cookie is set to secure
     response.cookies.set("access_token", tokens.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
