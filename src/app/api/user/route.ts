@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, tokenIntrospect } from "@/lib/kick-api";
+import { TokenManager } from "@/lib/auth/tokenManager";
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const session_token = request.cookies.get("session_token")?.value;
+    console.log("session_token", session_token);
+    if (!session_token) {
+      return NextResponse.json(
+        { error: "No session_token  found" },
+        { status: 401 }
+      );
+    }
 
-    console.log("Access Token:", accessToken);
+    const sessionData = await TokenManager.getSessionData(session_token);
+    const accessToken = sessionData?.accessToken;
     if (!accessToken) {
       return NextResponse.json(
         { error: "No access token found" },
         { status: 401 }
       );
     }
+
+    console.log("accessToken", accessToken);
     const tokenIntrospectResponse = await tokenIntrospect(accessToken);
 
     if (!tokenIntrospectResponse) {

@@ -1,154 +1,127 @@
+// src/app/api/auth/callback/route.ts
 import { handleCallback } from "@/lib/kick-oauth";
 import { NextRequest, NextResponse } from "next/server";
+import { TokenManager } from "@/lib/auth/tokenManager";
+import { getCurrentUser, tokenIntrospect } from "@/lib/kick-api";
+import { UserService } from "@/lib/services/user-service";
+import crypto from "crypto";
 
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    // console.log("Callback URL:", url.toString());
-
-    // Log the query parameters
     const params = new URLSearchParams(url.search);
-    // console.log("Callback params:", {
-    //   code: params.get("code")
-    //     ? `${params.get("code")?.substring(0, 5)}...`
-    //     : "missing",
-    //   state: params.get("state")
-    //     ? `${params.get("state")?.substring(0, 5)}...`
-    //     : "missing",
-    //   error: params.get("error"),
-    //   errorDescription: params.get("error_description"),
-    // });
 
-    // Check for OAuth error parameters
+    // OAuth error kontrolü
     if (params.get("error")) {
-      return NextResponse.json(
-        {
-          error: params.get("error"),
-          error_description: params.get("error_description"),
-        },
-        { status: 400 }
+      console.error("OAuth error:", params.get("error"));
+      return NextResponse.redirect(
+        new URL("/login?error=" + params.get("error"), request.url)
       );
     }
 
-    // Get code_verifier and state from cookies
+    // PKCE values
     const code_verifier = request.cookies.get("code_verifier")?.value;
     const state = request.cookies.get("state")?.value;
+    const receivedState = params.get("state");
+    const authCode = params.get("code");
 
-    // console.log("Cookie values:", {
-    //   codeVerifierPresent: !!code_verifier,
-    //   statePresent: !!state,
-    //   codeVerifierLength: code_verifier?.length,
-    // });
-
-    if (!code_verifier || !state) {
-      return NextResponse.json(
-        { error: "Missing PKCE or state values. Please try logging in again." },
-        { status: 400 }
+    // Güvenlik kontrolleri
+    if (!code_verifier || !state || !receivedState || !authCode) {
+      console.error("Missing required parameters");
+      return NextResponse.redirect(
+        new URL("/login?error=missing_params", request.url)
       );
     }
 
-    // Exchange code for token
+    // State parameter doğrulama
+    if (state !== receivedState) {
+      console.error("State mismatch: CSRF attack detected");
+      return NextResponse.redirect(
+        new URL("/login?error=invalid_state", request.url)
+      );
+    }
+
+    console.log("✅ Security checks passed, processing OAuth callback...");
+
+    // OAuth token exchange
     const tokens = await handleCallback(url, code_verifier, state);
+    console.log("✅ OAuth tokens received");
 
-    // Create response
-    const response = NextResponse.redirect(new URL("/", request.url));
+    // 🎯 1. USER BİLGİLERİNİ AL VE DATABASE'E KAYDET
+    const sessionId = crypto.randomUUID();
+    console.log("Generated session ID:", sessionId);
 
-    // Clear auth cookies
-    response.cookies.set("code_verifier", "", {
-      maxAge: 0,
-      path: "/",
+    // Token introspect
+    const tokenIntrospectResponse = await tokenIntrospect(tokens.access_token);
+    if (!tokenIntrospectResponse) {
+      throw new Error("Failed to introspect token");
+    }
+
+    const tokenInfo = {
+      active: tokenIntrospectResponse.data.active,
+      client_id: tokenIntrospectResponse.data.client_id,
+      exp: tokenIntrospectResponse.data.exp,
+      scope: tokenIntrospectResponse.data.scope,
+      token_type: tokenIntrospectResponse.data.token_type,
+    };
+
+    // User bilgilerini al
+    const userResponse = await getCurrentUser(tokens.access_token);
+    const userData = userResponse.data[0];
+
+    // 🎯 User'ı database'e kaydet (sessionId ile)
+    const dbUser = await UserService.createOrUpdateUser({
+      kickUserId: userData.user_id.toString(),
+      username: userData.name,
+      email: userData.email,
+      profilePicture: userData.profile_picture,
+      sessionId: sessionId, // ✅ Session ID'yi burada set et
+      accessToken: tokens.access_token,
+      tokenInfo: tokenInfo,
+      scope: tokenInfo.scope.split(" "),
     });
-    response.cookies.set("state", "", {
-      maxAge: 0,
-      path: "/",
+
+    console.log("✅ User saved to database with sessionId:", sessionId);
+
+    // 🎯 2. ŞİMDİ TOKEN MANAGER'DA SESSION OLUŞTUR
+    const sessionToken = await TokenManager.setTokens(sessionId, {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expires_in: tokens.expires_in || 7200,
+      scope: tokenInfo.scope.split(" "),
+      tokentype: tokens.token_type || "Bearer",
     });
 
-    // This is only in development, in production the cookie is set to secure
-    response.cookies.set("access_token", tokens.access_token, {
+    console.log("✅ Session token created");
+
+    // 🎯 Dashboard'a yönlendir
+    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+
+    // Cookie'leri temizle
+    response.cookies.set("code_verifier", "", { maxAge: 0, path: "/" });
+    response.cookies.set("state", "", { maxAge: 0, path: "/" });
+
+    // Session token'ı set et
+    response.cookies.set("session_token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: tokens.expires_in || 3600, // Default to 1 hour if expires_in is not provided
+      maxAge: 24 * 60 * 60,
+      sameSite: "lax",
     });
 
-    if (tokens.refresh_token) {
-      response.cookies.set("refresh_token", tokens.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-      });
-    }
-
+    console.log("✅ Redirecting to dashboard with session token");
     return response;
   } catch (error) {
     console.error("Error handling callback:", error);
-    let errorMessage = "Failed to exchange code for token";
-    let errorDetails = {};
 
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      errorDetails = {
-        name: error.name,
-        stack: error.stack,
-      };
-    }
+    const errorResponse = NextResponse.redirect(
+      new URL("/login?error=callback_failed", request.url)
+    );
 
-    // Log detailed information for debugging
-    // console.log("URL params:", request.url);
-    const cv = request.cookies.get("code_verifier")?.value;
-    const st = request.cookies.get("state")?.value;
-    // console.log("Code verifier length:", cv?.length);
-    // console.log("State value present:", !!st);
+    errorResponse.cookies.set("code_verifier", "", { maxAge: 0, path: "/" });
+    errorResponse.cookies.set("state", "", { maxAge: 0, path: "/" });
 
-    // Create a debug page with detailed error info instead of just JSON
-    const htmlResponse = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>OAuth Error</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 2rem; max-width: 800px; margin: 0 auto; }
-          pre { background: #f4f4f4; padding: 1rem; overflow: auto; }
-          .error { color: #e53e3e; }
-          .container { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-          h1 { margin-top: 0; }
-          .btn { display: inline-block; background: #3182ce; color: white; padding: 0.5rem 1rem; 
-                text-decoration: none; border-radius: 4px; margin-top: 1rem; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1 class="error">OAuth Error</h1>
-          <p>An error occurred during the OAuth callback process:</p>
-          <pre class="error">${errorMessage}</pre>
-          
-          <h2>Debug Information</h2>
-          <p>This information can help diagnose the issue:</p>
-          <pre>${JSON.stringify(
-            {
-              url: request.url,
-              codeVerifierPresent: !!cv,
-              codeVerifierLength: cv?.length,
-              statePresent: !!st,
-              error: errorDetails,
-            },
-            null,
-            2
-          )}</pre>
-          
-          <a href="/" class="btn">Return to Home</a>
-        </div>
-      </body>
-    </html>
-    `;
-
-    return new Response(htmlResponse, {
-      status: 500,
-      headers: {
-        "Content-Type": "text/html",
-      },
-    });
+    return errorResponse;
   }
 }

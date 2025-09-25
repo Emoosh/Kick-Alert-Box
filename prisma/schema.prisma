@@ -5,7 +5,6 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -14,21 +13,41 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  kickUserId   String   @unique
-  username     String
-  email        String?
-  accessToken  String   // encrypted
-  refreshToken String?  // encrypted
-  settings     Json?    @default("{}")
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  alerts       Alert[]
-  webhooks     Webhook[]
-  
+  id              String    @id @default(cuid())
+  kickUserId      String    @unique
+  username        String
+  email           String?
+  profilePicture  String?
+  sessionId       String?   // JWT session ID
+  accessToken     String?   // Encrypted access token
+  tokenInfo       Json?     // Token introspect bilgileri
+  scope           String[]  @default([])
+  settings        Json?     @default("{}")
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+  lastActivityAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  refreshTokens   RefreshToken[]
+  alerts          Alert[]
+  webhooks        Webhook[]
+
   @@map("users")
+}
+
+model RefreshToken {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  userId       String   // User tablosundaki ID
+  sessionToken String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("refresh_tokens")
 }
 
 model Alert {

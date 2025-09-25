@@ -1,293 +1,182 @@
+// src/app/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useSession } from "../../hooks/useSession";
 
-interface DashboardStats {
-  today: {
-    follows: number;
-    subscribes: number;
-    tips: number;
-    tipAmount: number;
-  };
-  week: {
-    follows: number;
-    subscribes: number;
-    tips: number;
-    tipAmount: number;
-  };
-  total: {
-    follows: number;
-    subscribes: number;
-    tips: number;
-    tipAmount: number;
-  };
-}
-
-interface WebhookStatus {
-  isActive: boolean;
-  webhookUrl: string;
-  obsUrl: string;
-  totalAlerts: number;
-  lastAlert?: number;
-}
-
-export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-  const [testLoading, setTestLoading] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      const [statsRes, webhookRes] = await Promise.all([
-        fetch("/api/dashboard/stats"),
-        fetch("/api/webhooks/status"),
-      ]);
-
-      if (!statsRes.ok || !webhookRes.ok) {
-        router.push("/login");
-        return;
-      }
-
-      const statsData = await statsRes.json();
-      const webhookData = await webhookRes.json();
-
-      setStats(statsData);
-      setWebhookStatus(webhookData);
-    } catch (error) {
-      console.error("Dashboard data loading error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sendTestAlert = async (type: "follow" | "subscribe" | "tip") => {
-    setTestLoading(true);
-    try {
-      const response = await fetch("/api/alerts/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, username: "TestUser" }),
-      });
-
-      if (response.ok) {
-        alert("Test alert gönderildi!");
-      } else {
-        alert("Test alert gönderilemedi");
-      }
-    } catch (error) {
-      alert("Hata oluştu");
-    } finally {
-      setTestLoading(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Kopyalandı!");
-  };
+export default function Dashboard() {
+  const { session, loading, error, logout, isAuthenticated } = useSession();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white">Yükleniyor...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <strong className="font-bold">Error:</strong>
+            <span className="block sm:inline"> {error}</span>
+          </div>
+          <a
+            href="/login"
+            className="mt-4 inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Go to Login
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Not Authenticated
+          </h1>
+          <a
+            href="/login"
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Go to Login
+          </a>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="space-x-4">
-            <a
-              href="/settings"
-              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <img
+                src={session?.user?.data?.[0]?.profile_picture}
+                alt="Profile"
+                className="h-10 w-10 rounded-full mr-4"
+              />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Welcome, {session?.user?.data?.[0]?.name}!
+                </h1>
+                <p className="text-sm text-gray-600">
+                  {session?.user?.data?.[0]?.email}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
             >
-              Ayarlar
-            </a>
-            <form action="/auth/logout" method="post" className="inline">
-              <button
-                type="submit"
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors"
-              >
-                Çıkış
-              </button>
-            </form>
+              Logout
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Webhook URLs */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Alert URLs</h2>
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          {/* User Info Card */}
+          <div className="bg-white overflow-hidden shadow rounded-lg mb-6">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                Account Information
+              </h3>
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">User ID</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {session?.user?.data?.[0]?.user_id}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    Username
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {session?.user?.data?.[0]?.name}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Email</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {session?.user?.data?.[0]?.email}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    Token Status
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        session?.user?.tokenInfo?.active
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {session?.user?.tokenInfo?.active ? "Active" : "Inactive"}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                OBS Browser Source URL:
-              </label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={webhookStatus?.obsUrl || ""}
-                  readOnly
-                  className="flex-1 bg-gray-700 px-3 py-2 rounded-l-lg font-mono text-sm"
-                />
-                <button
-                  onClick={() => copyToClipboard(webhookStatus?.obsUrl || "")}
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-r-lg transition-colors"
-                >
-                  Kopyala
+          {/* Scopes Card */}
+          <div className="bg-white overflow-hidden shadow rounded-lg mb-6">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                Permissions
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {session?.user?.tokenInfo?.scope
+                  ?.split(" ")
+                  .map((scope: string, index: number) => (
+                    <span
+                      key={index}
+                      className="inline-flex px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full"
+                    >
+                      {scope}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                Quick Actions
+              </h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded">
+                  Create Alert
+                </button>
+                <button className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded">
+                  Manage Webhooks
+                </button>
+                <button className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded">
+                  View Analytics
                 </button>
               </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Webhook URL (Kick için):
-              </label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={webhookStatus?.webhookUrl || ""}
-                  readOnly
-                  className="flex-1 bg-gray-700 px-3 py-2 rounded-l-lg font-mono text-sm"
-                />
-                <button
-                  onClick={() =>
-                    copyToClipboard(webhookStatus?.webhookUrl || "")
-                  }
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-r-lg transition-colors"
-                >
-                  Kopyala
-                </button>
-              </div>
-            </div>
           </div>
         </div>
-
-        {/* Statistics */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          {stats && (
-            <>
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">Bugün</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Takipçi:</span>
-                    <span className="font-semibold">{stats.today.follows}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Abone:</span>
-                    <span className="font-semibold">
-                      {stats.today.subscribes}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bağış:</span>
-                    <span className="font-semibold">{stats.today.tips}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Toplam Bağış:</span>
-                    <span className="font-semibold">
-                      ${stats.today.tipAmount}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">Bu Hafta</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Takipçi:</span>
-                    <span className="font-semibold">{stats.week.follows}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Abone:</span>
-                    <span className="font-semibold">
-                      {stats.week.subscribes}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bağış:</span>
-                    <span className="font-semibold">{stats.week.tips}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Toplam Bağış:</span>
-                    <span className="font-semibold">
-                      ${stats.week.tipAmount}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">Toplam</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Takipçi:</span>
-                    <span className="font-semibold">{stats.total.follows}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Abone:</span>
-                    <span className="font-semibold">
-                      {stats.total.subscribes}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bağış:</span>
-                    <span className="font-semibold">{stats.total.tips}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Toplam Bağış:</span>
-                    <span className="font-semibold">
-                      ${stats.total.tipAmount}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Test Alerts */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Test Alerts</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            <button
-              onClick={() => sendTestAlert("follow")}
-              disabled={testLoading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
-            >
-              Test Takipçi
-            </button>
-            <button
-              onClick={() => sendTestAlert("subscribe")}
-              disabled={testLoading}
-              className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
-            >
-              Test Abone
-            </button>
-            <button
-              onClick={() => sendTestAlert("tip")}
-              disabled={testLoading}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
-            >
-              Test Bağış
-            </button>
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
