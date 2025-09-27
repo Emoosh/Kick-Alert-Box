@@ -33,9 +33,30 @@ model User {
   refreshTokens   RefreshToken[]
   alerts          Alert[]
   webhooks        Webhook[]
-
+  alertVideos     AlertVideo[]
   @@map("users")
 }
+
+model AlertVideo {
+  id          String   @id @default(cuid())
+  userId      String
+  alertType   String   // "follow", "subscribe", "tip"
+  videoUrl    String   // File path veya cloud URL
+  videoName   String?
+  fileSize    Int?     // bytes
+  duration    Int?     // milliseconds
+  mimeType    String?  // "video/mp4", "video/webm"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0) // Video sıralaması için
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, alertType, sortOrder]) // Her alert türü için max 5 video
+  @@map("alert_videos")
+}
+
 
 model RefreshToken {
   id           String   @id @default(cuid())

@@ -1,13 +1,23 @@
+// src/lib/redis/redis.ts - Düzelt
 import * as dotenv from "dotenv";
 import Redis from "ioredis";
 
-// .env.local dosyasını yükle
 dotenv.config({ path: ".env.local" });
 
-let redis: Redis | null = null;
+// Singleton connection (genel kullanım için)
+let sharedRedis: Redis | null = null;
 
+// Shared connection (tek seferlik işlemler için)
 export function getRedisClient(): Redis {
-  if (redis) return redis;
+  if (sharedRedis) return sharedRedis;
+
+  sharedRedis = createRedisConnection();
+  return sharedRedis;
+}
+
+// Her çağrıda yeni connection (worker'lar için)
+export function createRedisConnection(): Redis {
+  let redis: Redis;
 
   if (process.env.REDIS_URL) {
     redis = new Redis(process.env.REDIS_URL, {
@@ -25,11 +35,11 @@ export function getRedisClient(): Redis {
   }
 
   redis.on("connect", () => {
-    console.log("Redis connected");
+    console.log("🔗 New Redis connection established");
   });
 
   redis.on("error", (error) => {
-    console.error("Redis error:", error);
+    console.error("🚨 Redis connection error:", error);
   });
 
   return redis;
