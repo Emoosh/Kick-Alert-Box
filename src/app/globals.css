@@ -24,3 +24,122 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* app/globals.css veya alert page'e özel CSS */
+.alert-container {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.alert-video {
+  animation: videoFadeIn 0.5s ease-out forwards;
+}
+
+@keyframes videoFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.text-alert {
+  animation: alertPulse 2s ease-in-out infinite;
+}
+
+@keyframes alertPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Video container responsive */
+.video-alert-wrapper {
+  background: radial-gradient(
+    circle,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
+}
+/* app/globals.css - En alta ekle */
+
+/* ✅ Next.js development overlay'ini gizle */
+#__next-dev-overlay,
+.__next-dev-overlay,
+[data-nextjs-dialog-overlay],
+[data-nextjs-toast],
+.__next-dev-overlay-dark,
+.__next-dev-overlay-light {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* ✅ Next.js development butonunu gizle */
+button[aria-label*="Open"],
+button[aria-label*="Close"],
+button[title*="Open"],
+button[title*="Close"],
+div[data-nextjs*="toggle"] {
+  display: none !important;
+}
+
+/* ✅ Tüm Next.js development UI'ını gizle */
+[id*="__nextjs"],
+[class*="__nextjs"],
+[data-nextjs] {
+  display: none !important;
+}
+
+/* ✅ Alert page'de extra temizlik */
+.alert-page {
+  background: transparent !important;
+}
+
+.alert-page * {
+  background: inherit;
+}
+
+/* ✅ OBS için optimize et */
+body {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html {
+  background: transparent !important;
+}
+
+/* app/globals.css - En alta ekle */
+
+/* ✅ Tüm Next.js development elementlerini gizle */
+[id^="__next"],
+[class^="__next"],
+[id*="nextjs"],
+[class*="nextjs"],
+body > div[style*="position: fixed"],
+body > div[style*="z-index"] {
+  display: none !important;
+}
+
+/* ✅ Development mode'da bile gizle */
+body > div:last-child {
+  display: none !important;
+}
+
+/* ✅ Alert page sadece alert göstersin */
+.alert-page-only {
+  position: relative;
+}
+
+.alert-page-only > *:not(.alert-container) {
+  display: none !important;
+}

@@ -1,10 +1,64 @@
-// src/worker/alert-worker.ts
-import { createRedisConnection, getRedisClient } from "../lib/redis/redis.ts"; // createRedisConnection import et
+// src/worker/alert-worker.ts - broadcastAlert fonksiyonunu güncelle
+import { createRedisConnection, getRedisClient } from "../lib/redis/redis.ts";
 import { broadcastAlert } from "../../ws-server.ts";
+import { getRandomAlertVideo } from "../lib/services/video-service.ts";
+import { PrismaClient } from "@prisma/client"; // ✅ Prisma client ekle
 
+const prisma = new PrismaClient(); // ✅ Prisma instance
 const activeWorkers = new Map<string, boolean>();
 
-// Worker'da timeout'u artır ve canlı tut
+// Alert'i işlerken video ekle
+async function processAlertWithVideo(alert: any) {
+  try {
+    console.log(`🎬 Processing alert for broadcaster: ${alert.broadcasterId}`);
+
+    // 1. Broadcaster ID'sinden database user'ını bul
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        kickUserId: alert.notHashedBroadcasterId.toString(), // ✅ broadcasterId aslında Kick user ID
+      },
+    });
+
+    if (dbUser) {
+      console.log(`👤 Found user in database: ${dbUser.id}`);
+
+      // 2. Alert tipine göre video seç
+      let alertType = "follow"; // Default
+      if (alert.type === "channel.followed") alertType = "follow";
+      else if (alert.type === "channel.subscribed") alertType = "subscribe";
+      else if (alert.type === "channel.tipped") alertType = "tip";
+
+      // 3. Random video seç
+      const selectedVideo = await getRandomAlertVideo(dbUser.id, alertType);
+
+      if (selectedVideo) {
+        // Alert'e video bilgilerini ekle
+        alert.videoUrl = selectedVideo.videoUrl;
+        alert.videoDuration = selectedVideo.duration || 10000; // 10 saniye default
+
+        console.log(
+          `🎬 Selected video: ${selectedVideo.videoName} for ${alertType} alert`
+        );
+      } else {
+        console.log(
+          `📭 No videos found for user ${dbUser.id}, type: ${alertType}`
+        );
+      }
+    } else {
+      console.log(
+        `❌ User not found in database for broadcaster ID: ${alert.broadcasterId}`
+      );
+    }
+
+    // 4. Alert'i broadcast et (video varsa video ile, yoksa normal)
+    broadcastAlert(alert);
+  } catch (error) {
+    console.error("❌ Error processing alert with video:", error);
+    // Hata olursa bile alert'i gönder
+    broadcastAlert(alert);
+  }
+}
+
 async function startBroadcasterWorker(broadcasterId: string) {
   if (activeWorkers.get(broadcasterId)) {
     console.log(
@@ -20,7 +74,7 @@ async function startBroadcasterWorker(broadcasterId: string) {
   );
 
   let idleCount = 0;
-  const MAX_IDLE_CYCLES = 5; // 20 * 5 saniye = 100 saniye idle'dan sonra dursun
+  const MAX_IDLE_CYCLES = 5;
 
   try {
     while (activeWorkers.get(broadcasterId)) {
@@ -36,7 +90,6 @@ async function startBroadcasterWorker(broadcasterId: string) {
             )}...] Idle ${idleCount}/${MAX_IDLE_CYCLES}`
           );
 
-          // Çok uzun süre idle kalırsa worker'ı durdur
           if (idleCount >= MAX_IDLE_CYCLES) {
             console.log(
               `💤 [${broadcasterId.substring(
@@ -49,7 +102,6 @@ async function startBroadcasterWorker(broadcasterId: string) {
           continue;
         }
 
-        // Alert aldı, idle counter'ı reset et
         idleCount = 0;
 
         const alertId = result[1];
@@ -69,12 +121,6 @@ async function startBroadcasterWorker(broadcasterId: string) {
               8
             )}...] Alert data not found: ${alertId}`
           );
-
-          // Debug: Redis'te hangi alert'ler var?
-          const availableAlerts = await redis.keys(`alert:*`);
-          console.log(
-            `🔍 Available alerts in Redis: ${availableAlerts.length}`
-          );
           continue;
         }
 
@@ -84,7 +130,9 @@ async function startBroadcasterWorker(broadcasterId: string) {
           alert
         );
 
-        broadcastAlert(alert);
+        // ✅ YENİ: Video ile alert işle
+        await processAlertWithVideo(alert);
+
         await redis.del(`alert:${alertId}`);
 
         console.log(
@@ -112,8 +160,13 @@ async function startBroadcasterWorker(broadcasterId: string) {
     console.log(
       `🛑 [${broadcasterId.substring(0, 8)}...] Worker stopped and removed`
     );
+
+    // ✅ Prisma connection'ı temizle
+    await prisma.$disconnect();
   }
 }
+
+// ... monitorQueues fonksiyonu aynı kalır ...
 // Main thread construction
 // src/worker/alert-worker.ts - Worker'ı durdurmayalım
 async function monitorQueues() {

@@ -28,6 +28,7 @@ export async function handleChannelFollow(input_data: any) {
     username: followerName,
     userId: followerId,
     broadcasterId: hashedBroadcasterId,
+    notHashedBroadcasterId: broadcasterId,
     timestamp: Date.now(),
   };
 

@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("accessToken", accessToken);
     const tokenIntrospectResponse = await tokenIntrospect(accessToken);
 
     if (!tokenIntrospectResponse) {
@@ -40,9 +39,9 @@ export async function GET(request: NextRequest) {
     };
 
     const user = await getCurrentUser(accessToken);
-
     user.tokenInfo = tokenInformation;
 
+    console.log("Fetched user profile:", user);
     return NextResponse.json({ user });
   } catch (error) {
     console.error("Error fetching user profile:", error);

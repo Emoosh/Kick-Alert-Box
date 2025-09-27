@@ -1,129 +1,244 @@
+// src/app/alert/[slug]/page.tsx - TAMAMEN YENİ VERSİYON
 "use client";
-import { use, useEffect, useState } from "react";
-
-type AlertType = "follow" | "subscribe" | "subscriptionRenewal";
+import { useEffect, useState, useRef } from "react";
 
 interface AlertData {
   id: string;
-  type: AlertType;
+  type: string;
   username: string;
-  userId: number;
-  broadcasterId?: number;
+  userId?: number;
+  broadcasterId: string;
   timestamp: number;
-  message?: string;
-  amount?: number;
-  months?: number;
+  videoUrl?: string;
+  videoDuration?: number;
 }
 
-export default function AlertsPage({
+export default function AlertPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = use(params);
-
+  const [slug, setSlug] = useState<string>("");
   const [alertData, setAlertData] = useState<AlertData | null>(null);
   const [visible, setVisible] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:4001?broadcasterId=${slug}`);
+    params.then((resolvedParams) => {
+      setSlug(resolvedParams.slug);
+    });
+  }, [params]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    console.log(`🔗 Connecting to WebSocket for broadcaster: ${slug}`);
+
+    const ws = new WebSocket(
+      `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`
+    );
 
     ws.onopen = () => {
-      console.log("Connected to WebSocket server");
+      console.log("✅ WebSocket connected successfully");
+      setIsConnected(true);
     };
 
     ws.onmessage = (event) => {
+      console.log("📨 WebSocket message received:", event.data);
+
       try {
         const data = JSON.parse(event.data);
-        console.log("Received alert:", data);
 
+        if (data.type === "connection") {
+          console.log("🤝 Connection confirmation received");
+          return;
+        }
+
+        console.log("🚨 Alert received:", data);
+
+        // Mevcut alert'i temizle
+        if (alertTimeoutRef.current) {
+          clearTimeout(alertTimeoutRef.current);
+          alertTimeoutRef.current = null;
+        }
+
+        // Yeni alert'i set et
         setAlertData(data);
         setVisible(true);
 
-        setTimeout(() => {
+        // Video varsa oynat
+        if (data.videoUrl && videoRef.current) {
+          console.log("🎬 Playing video:", data.videoUrl);
+
+          // Video URL'ini tam path yap
+          const fullVideoUrl = data.videoUrl.startsWith("http")
+            ? data.videoUrl
+            : `http://localhost:3001${data.videoUrl}`;
+
+          console.log("🔗 Full video URL:", fullVideoUrl);
+
+          videoRef.current.src = fullVideoUrl;
+          videoRef.current.currentTime = 0;
+
+          videoRef.current.play().catch((error) => {
+            console.error("❌ Video play failed:", error);
+          });
+        }
+
+        // Alert süresini belirle
+        const displayDuration = data.videoDuration || 5000;
+
+        console.log(`⏰ Alert will be visible for ${displayDuration}ms`);
+
+        // Alert'i gizle
+        alertTimeoutRef.current = setTimeout(() => {
+          console.log("👋 Hiding alert");
           setVisible(false);
-          setTimeout(() => setAlertData(null), 500);
-        }, 5000);
+
+          if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.currentTime = 0;
+          }
+
+          setTimeout(() => {
+            setAlertData(null);
+          }, 500);
+        }, displayDuration);
       } catch (error) {
-        console.error("Error parsing WebSocket data:", error);
+        console.error("❌ Error parsing WebSocket data:", error);
       }
     };
 
-    return () => ws.close();
-  }, []);
+    ws.onclose = (event) => {
+      console.log(
+        `🔌 WebSocket closed - Code: ${event.code}, Reason: ${event.reason}`
+      );
+      setIsConnected(false);
+    };
 
-  const alertContainerStyle = {
-    position: "fixed" as const,
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    padding: "30px",
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    borderRadius: "10px",
-    color: "white",
-    fontSize: "2rem",
-    textAlign: "center" as const,
-    zIndex: 1000,
-    opacity: visible ? 1 : 0,
-    transition: "opacity 0.5s ease",
+    ws.onerror = (error) => {
+      console.error("🚨 WebSocket error:", error);
+      setIsConnected(false);
+    };
+
+    return () => {
+      if (alertTimeoutRef.current) {
+        clearTimeout(alertTimeoutRef.current);
+      }
+      ws.close();
+    };
+  }, [slug]);
+
+  const handleVideoEnded = () => {
+    console.log("🎬 Video ended - Auto hiding alert");
+    setVisible(false);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+    setTimeout(() => setAlertData(null), 500);
   };
 
-  const renderAlertContent = () => {
-    if (!alertData) return null;
-
-    switch (alertData.type) {
-      case "follow":
-        return (
-          <div style={{ ...alertContainerStyle, border: "5px solid #ff5500" }}>
-            <h1 style={{ color: "#ff5500" }}>
-              {alertData.username} seni takip etti!
-            </h1>
-          </div>
-        );
-
-      case "subscribe":
-        return (
-          <div style={{ ...alertContainerStyle, border: "5px solid #00aaff" }}>
-            <h1 style={{ color: "#00aaff" }}>
-              {alertData.username} abone oldu!
-            </h1>
-            {alertData.months && <p>{alertData.months}. ay!</p>}
-          </div>
-        );
-
-      case "subscriptionRenewal":
-        return (
-          <div style={{ ...alertContainerStyle, border: "5px solid #ff00aa" }}>
-            <h1 style={{ color: "#ff00aa" }}>
-              {alertData.username} aboneliğini yeniledi!
-            </h1>
-            <p>{alertData.amount} TL</p>
-            {alertData.message && <p>"{alertData.message}"</p>}
-          </div>
-        );
-
-      default:
-        return null;
+  const handleVideoError = (error: any) => {
+    console.error("❌ Video error:", error);
+    if (alertData) {
+      const textAlert = { ...alertData, videoUrl: undefined };
+      setAlertData(textAlert);
     }
   };
 
-  return (
-    <div style={{ width: "100%", height: "100vh" }}>
-      {renderAlertContent()}
+  if (!slug) {
+    return <div className="min-h-screen"></div>;
+  }
 
-      {/* Debug bilgisi */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "10px",
-          left: "10px",
-          fontSize: "12px",
-          color: "gray",
-        }}
-      >
-        WebSocket: Bağlı | Alert: {alertData?.type || "Yok"} | User:{" "}
-        {alertData?.username || "Yok"} | Visible: {visible ? "Evet" : "Hayır"}
-      </div>
-    </div>
+  return (
+    <>
+      {/* ✅ SADECE ALERT'LER GÖRÜNSÜN - ŞEFFAF DEĞİL */}
+      {visible && alertData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Video Alert */}
+          {alertData.videoUrl ? (
+            <div className="relative">
+              {/* Video Container */}
+              <div className="flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+                  autoPlay
+                  muted={false}
+                  onEnded={handleVideoEnded}
+                  onError={handleVideoError}
+                  style={{
+                    backgroundColor: "#000",
+                    minWidth: "400px",
+                    minHeight: "300px",
+                  }}
+                >
+                  <source src={alertData.videoUrl} type="video/webm" />
+                  <source src={alertData.videoUrl} type="video/mp4" />
+                  <source src={alertData.videoUrl} type="video/mov" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+
+              {/* Text Overlay - Video Üzerinde */}
+              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl px-8 py-4 shadow-2xl border-2 border-white/20">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">
+                      {alertData.type === "follow" && "👥"}
+                      {alertData.type === "subscribe" && "⭐"}
+                      {alertData.type === "tip" && "💰"}
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-1">
+                      {alertData.type === "follow" && "NEW FOLLOWER!"}
+                      {alertData.type === "subscribe" && "NEW SUBSCRIBER!"}
+                      {alertData.type === "tip" && "NEW TIP!"}
+                    </h2>
+                    <p className="text-xl text-yellow-300 font-bold">
+                      {alertData.username}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Text Only Alert - Video Yoksa */
+            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-2xl p-12 shadow-2xl border-4 border-white/30 animate-pulse">
+              <div className="text-center">
+                <div className="text-8xl mb-6 animate-bounce">
+                  {alertData.type === "follow" && "👥"}
+                  {alertData.type === "subscribe" && "⭐"}
+                  {alertData.type === "tip" && "💰"}
+                </div>
+                <h2 className="text-4xl font-bold text-white mb-4 uppercase tracking-wider">
+                  {alertData.type === "follow" && "NEW FOLLOWER!"}
+                  {alertData.type === "subscribe" && "NEW SUBSCRIBER!"}
+                  {alertData.type === "tip" && "NEW TIP!"}
+                </h2>
+                <p className="text-3xl text-yellow-300 font-bold animate-pulse">
+                  {alertData.username}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ✅ DEBUG: Connection Status (Sadece development'ta görünsün) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed top-4 right-4 z-40">
+          <div
+            className={`px-3 py-1 rounded text-sm ${
+              isConnected ? "bg-green-600 text-white" : "bg-red-600 text-white"
+            }`}
+          >
+            {isConnected ? "🟢 Connected" : "🔴 Disconnected"}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

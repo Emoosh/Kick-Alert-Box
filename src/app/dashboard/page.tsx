@@ -10,6 +10,7 @@ import {
   generateAlertPageURL,
   generateHashedUserId,
 } from "@/lib/utils/websocket"; // ✅ DOĞRU IMPORT
+import { VideoUpload } from "@/app/components/VideoUpload";
 
 // Event types tanımla
 const EVENT_TYPES = [
@@ -72,7 +73,7 @@ export default function Dashboard() {
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "events" | "websocket" | "settings"
+    "overview" | "events" | "websocket" | "settings" | "videos"
   >("overview");
   const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -373,6 +374,20 @@ export default function Dashboard() {
               }`}
             >
               🔗 WebSocket URL
+            </button>
+            <button
+              onClick={() => setActiveTab("videos")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "videos"
+                  ? "border-blue-500 text-blue-600"
+                  : `border-transparent ${
+                      isDark
+                        ? "text-gray-400 hover:text-gray-300"
+                        : "text-gray-500 hover:text-gray-700"
+                    } hover:border-gray-300`
+              }`}
+            >
+              🎬 Alert Videos
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -1367,6 +1382,82 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* ✅ Videos Tab Content - Settings'ten önce */}
+          {activeTab === "videos" && (
+            <div className="space-y-6">
+              <div
+                className={`overflow-hidden shadow rounded-lg ${
+                  isDark ? "bg-gray-800" : "bg-white"
+                }`}
+              >
+                <div className="px-4 py-5 sm:p-6">
+                  <h3
+                    className={`text-lg leading-6 font-medium mb-4 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    🎬 Alert Video Settings
+                  </h3>
+
+                  <p
+                    className={`text-sm mb-6 ${
+                      isDark ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Upload custom videos that will play when viewers follow your
+                    stream.
+                  </p>
+
+                  <VideoUpload />
+
+                  {/* Alert Page URL */}
+                  {alertPageURL && (
+                    <div
+                      className={`mt-8 p-4 rounded-lg border ${
+                        isDark
+                          ? "bg-blue-900/20 border-blue-800"
+                          : "bg-blue-50 border-blue-200"
+                      }`}
+                    >
+                      <h4
+                        className={`font-semibold mb-2 ${
+                          isDark ? "text-blue-300" : "text-blue-700"
+                        }`}
+                      >
+                        🔗 Test Your Videos
+                      </h4>
+                      <p
+                        className={`text-sm mb-3 ${
+                          isDark ? "text-gray-300" : "text-gray-600"
+                        }`}
+                      >
+                        Use this URL to test your uploaded videos:
+                      </p>
+                      <code
+                        className={`block p-2 rounded text-sm break-all ${
+                          isDark
+                            ? "bg-gray-700 text-green-400"
+                            : "bg-gray-100 text-green-700"
+                        }`}
+                      >
+                        {alertPageURL}
+                      </code>
+                      <button
+                        onClick={copyWebSocketURL}
+                        className={`mt-2 px-3 py-1 text-sm rounded ${
+                          copiedUrl
+                            ? "bg-green-500 text-white"
+                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                        }`}
+                      >
+                        {copiedUrl ? "✅ Copied!" : "📋 Copy URL"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="space-y-6">
