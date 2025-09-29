@@ -117,29 +117,3 @@ body {
 html {
   background: transparent !important;
 }
-
-/* app/globals.css - En alta ekle */
-
-/* ✅ Tüm Next.js development elementlerini gizle */
-[id^="__next"],
-[class^="__next"],
-[id*="nextjs"],
-[class*="nextjs"],
-body > div[style*="position: fixed"],
-body > div[style*="z-index"] {
-  display: none !important;
-}
-
-/* ✅ Development mode'da bile gizle */
-body > div:last-child {
-  display: none !important;
-}
-
-/* ✅ Alert page sadece alert göstersin */
-.alert-page-only {
-  position: relative;
-}
-
-.alert-page-only > *:not(.alert-container) {
-  display: none !important;
-}

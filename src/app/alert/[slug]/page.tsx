@@ -76,7 +76,7 @@ export default function AlertPage({
           // Video URL'ini tam path yap
           const fullVideoUrl = data.videoUrl.startsWith("http")
             ? data.videoUrl
-            : `http://localhost:3001${data.videoUrl}`;
+            : `http://localhost:3000${data.videoUrl}`;
 
           console.log("🔗 Full video URL:", fullVideoUrl);
 
@@ -184,23 +184,34 @@ export default function AlertPage({
               </div>
 
               {/* Text Overlay - Video Üzerinde */}
-              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
-                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl px-8 py-4 shadow-2xl border-2 border-white/20">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">
-                      {alertData.type === "follow" && "👥"}
-                      {alertData.type === "subscribe" && "⭐"}
-                      {alertData.type === "tip" && "💰"}
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-1">
-                      {alertData.type === "follow" && "HOŞ GELDİN KANKİM"}
-                      {alertData.type === "subscribe" && "NEW SUBSCRIBER!"}
-                      {alertData.type === "tip" && "NEW TIP!"}
-                    </h2>
-                    <p className="text-xl text-yellow-300 font-bold">
-                      {alertData.username}
-                    </p>
-                  </div>
+              {/* Text Overlay - Minimal & Modern */}
+              {/* Text Overlay - Ultra Minimal */}
+              {/* Text Overlay - Neon Glow */}
+              {/* Text Overlay - Outlined */}
+              {/* Text Overlay - Neon Blue Gradient */}
+              {/* Text Overlay - Bright Neon Blue  most*/}
+              {/* Text Overlay - Cyan Neon */}
+              {/* Text Overlay - Outlined Neon Blue */}
+              {/* Text Overlay - Sophisticated Neon */}
+              {/* Text Overlay - Minimalist Elite güzel*/}
+              <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-[10000]">
+                <div className="text-center">
+                  <p
+                    className="text-3xl font-medium tracking-wide"
+                    style={{
+                      color: "#ffffff",
+                      fontFamily:
+                        '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                      fontWeight: 500,
+                      letterSpacing: "0.08em",
+                      textShadow: `
+          0 2px 4px rgba(0, 0, 0, 0.8),
+          0 0 30px rgba(255, 255, 255, 0.3)
+        `,
+                    }}
+                  >
+                    {` Canım Takipçim ${alertData.username} `}
+                  </p>
                 </div>
               </div>
             </div>
