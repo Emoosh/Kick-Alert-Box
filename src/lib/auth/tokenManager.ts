@@ -1,12 +1,12 @@
 import { getRedisClient } from "../redis/redis";
 import { SignJWT, jwtVerify } from "jose";
+import { PrismaClient } from "@prisma/client";
 
-let prisma: any;
+let prisma: PrismaClient;
 let redis: any;
 
 function getPrismaClient() {
   if (!prisma) {
-    const { PrismaClient } = require("@prisma/client");
     prisma = new PrismaClient();
   }
   return prisma;
@@ -30,19 +30,13 @@ export interface TokenData {
 export class TokenManager {
   private static getJWTSecret(): Uint8Array {
     const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET environment variable is required");
-    }
+    if (!secret) throw new Error("JWT_SECRET environment variable is required");
     return new TextEncoder().encode(secret);
   }
 
   private static async generateSessionToken(userId: string): Promise<string> {
     const secret = this.getJWTSecret();
-
-    return await new SignJWT({
-      userId,
-      type: "session",
-    })
+    return await new SignJWT({ userId, type: "session" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("24h")
@@ -71,89 +65,73 @@ export class TokenManager {
     return (payload?.userId as string) || null;
   }
 
-  static async setTokens(userId: string, tokenData: TokenData) {
+  // Kullanıcı login olduğunda access/refresh token'ı kaydet
+  static async setTokens(
+    userId: string,
+    tokenData: TokenData,
+    deviceInfo?: string,
+    ipAddress?: string
+  ) {
     const redis = getRedis();
+    const prisma = getPrismaClient();
     const sessionToken = await this.generateSessionToken(userId);
 
+    // Access token'ı Redis'e kaydet
     await redis.setex(
       `access_token:${userId}`,
       tokenData.expires_in || 7200,
       tokenData.accessToken
     );
 
-    // await redis.setex(
-    //   `session:${sessionToken}`,
-    //   86400,
-    //   JSON.stringify({
-    //     userId,
-    //     scope: tokenData.scope,
-    //     tokenType: tokenData.tokentype,
-    //   })
-    // );
+    // AccessToken tablosuna kaydet/güncelle
+    await prisma.accessToken.upsert({
+      where: { token: tokenData.accessToken },
+      update: {
+        expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
+        deviceInfo,
+        ipAddress,
+      },
+      create: {
+        token: tokenData.accessToken,
+        userId,
+        expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
+        deviceInfo,
+        ipAddress,
+      },
+    });
 
+    // RefreshToken tablosuna kaydet/güncelle
     if (tokenData.refreshToken) {
-      try {
-        const prisma = getPrismaClient();
-        // Dont know the actual expiration from Kick, so I set it to 30 days.
-        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-        const user = await prisma.user.findFirst({
-          where: { sessionId: userId },
-        });
-
-        if (!user) {
-          console.warn("⚠️ User not found for sessionId:", userId);
-          console.warn("RefreshToken will not be saved to database");
-          return sessionToken;
-        }
-
-        await prisma.refreshToken.deleteMany({
-          where: { userId: user.id },
-        });
-
-        await prisma.refreshToken.create({
-          data: {
-            token: tokenData.refreshToken,
-            userId: user.id,
-            expiresAt,
-            sessionToken,
-          },
-        });
-
-        console.log("✅ RefreshToken saved successfully");
-      } catch (dbError) {
-        console.error("❌ Failed to save refresh token:", dbError);
-      }
+      await prisma.refreshToken.upsert({
+        where: { token: tokenData.refreshToken },
+        update: {
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          deviceInfo,
+          ipAddress,
+        },
+        create: {
+          token: tokenData.refreshToken,
+          userId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          deviceInfo,
+          ipAddress,
+        },
+      });
     }
 
     return sessionToken;
   }
 
+  // Session'dan access token al
   static async getSessionData(sessionToken: string) {
     try {
       const redis = getRedis();
-
       const payload = await this.verifySessionToken(sessionToken);
-      if (!payload || !payload.userId) {
-        return null;
-      }
-
+      if (!payload || !payload.userId) return null;
       const userId = payload.userId as string;
 
-      // const sessionData = await redis.get(`session:${sessionToken}`);
-      // if (!sessionData) {
-      //   return null;
-      // }
-
-      // const parsed = JSON.parse(sessionData);
       const accessToken = await this.getAccessToken(userId);
-
-      return {
-        userId,
-        accessToken,
-        // scope: parsed.scope,
-        // tokenType: parsed.tokenType,
-      };
+      return { userId, accessToken };
     } catch (error) {
       console.error("Error getting session data:", error);
       return null;
@@ -161,45 +139,43 @@ export class TokenManager {
   }
 
   static async getAccessToken(userId: string): Promise<string | null> {
-    try {
-      const prisma = getPrismaClient(); // Lazy load
-      const redis = getRedis(); // Lazy load
+    const redis = getRedis();
+    const prisma = getPrismaClient();
 
-      const accessToken = await redis.get(`access_token:${userId}`);
-      if (accessToken) {
-        return accessToken;
-      }
+    // Önce Redis'ten dene
+    const accessToken = await redis.get(`access_token:${userId}`);
+    if (accessToken) return accessToken;
 
-      const refreshTokenRecord = await prisma.refreshToken.findFirst({
-        where: { userId, expiresAt: { gt: new Date() } },
-        orderBy: { createdAt: "desc" },
-      });
+    // DB'den en güncel access token'ı bul
+    const accessTokenRecord = await prisma.accessToken.findFirst({
+      where: { userId, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+    });
 
-      if (!refreshTokenRecord) {
-        return null;
-      }
+    if (accessTokenRecord) {
+      await redis.setex(
+        `access_token:${userId}`,
+        Math.floor((accessTokenRecord.expiresAt.getTime() - Date.now()) / 1000),
+        accessTokenRecord.token
+      );
+      return accessTokenRecord.token;
+    }
 
+    // Refresh token ile yeni access token iste (opsiyonel)
+    const refreshTokenRecord = await prisma.refreshToken.findFirst({
+      where: { userId, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (refreshTokenRecord) {
       const newTokens = await this.requestNewTokens(refreshTokenRecord.token);
       if (newTokens) {
-        await redis.setex(
-          `access_token:${userId}`,
-          newTokens.expires_in || 7200,
-          newTokens.accessToken
-        );
-
-        await prisma.refreshToken.update({
-          where: { id: refreshTokenRecord.id },
-          data: { token: newTokens.refreshToken },
-        });
-
+        await this.setTokens(userId, newTokens);
         return newTokens.accessToken;
       }
-
-      return null;
-    } catch (error) {
-      console.error("Error getting access token:", error);
-      return null;
     }
+
+    return null;
   }
 
   private static async requestNewTokens(
@@ -208,16 +184,12 @@ export class TokenManager {
     try {
       const clientId = process.env.KICK_CLIENT_ID;
       const clientSecret = process.env.KICK_CLIENT_SECRET;
-
-      if (!clientId || !clientSecret) {
+      if (!clientId || !clientSecret)
         throw new Error("KICK_CLIENT_ID and KICK_CLIENT_SECRET are required");
-      }
 
       const response = await fetch("https://id.kick.com/oauth/token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "refresh_token",
           client_id: clientId,
@@ -226,10 +198,8 @@ export class TokenManager {
         }),
       });
 
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const data = await response.json();
       return {
         accessToken: data.access_token,
@@ -244,31 +214,19 @@ export class TokenManager {
     }
   }
 
-  // src/lib/auth/tokenManager.ts içinde deleteSession methodunu ekle/kontrol et
   static async deleteSession(sessionToken: string) {
     try {
       const redis = getRedis();
-
+      const prisma = getPrismaClient();
       const payload = await this.verifySessionToken(sessionToken);
       if (payload && payload.userId) {
         const userId = payload.userId as string;
 
-        // Redis'ten temizle
-        await redis.del(`session:${sessionToken}`);
         await redis.del(`access_token:${userId}`);
-
-        console.log("✅ Session data cleared from Redis");
-
-        // DB'den temizle (opsiyonel)
-        try {
-          const prisma = getPrismaClient();
-          await prisma.refreshToken.deleteMany({
-            where: { sessionToken },
-          });
-          console.log("✅ Refresh tokens cleared from DB");
-        } catch (dbError) {
-          console.warn("Failed to clear refresh tokens from DB:", dbError);
-        }
+        // İlgili access/refresh token kayıtlarını DB'den silmek istersen:
+        await prisma.accessToken.deleteMany({ where: { userId } });
+        await prisma.refreshToken.deleteMany({ where: { userId } });
+        console.log("✅ Session tokens cleared from DB and Redis");
       }
     } catch (error) {
       console.error("Error deleting session:", error);
