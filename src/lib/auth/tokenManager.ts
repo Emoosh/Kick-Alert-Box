@@ -1,7 +1,6 @@
 import { getRedisClient } from "../redis/redis";
 import { SignJWT, jwtVerify } from "jose";
 
-// Lazy initialization - global değil
 let prisma: any;
 let redis: any;
 
@@ -72,45 +71,31 @@ export class TokenManager {
     return (payload?.userId as string) || null;
   }
 
-  // src/lib/auth/tokenManager.ts - setTokens methodunu düzelt
-
   static async setTokens(userId: string, tokenData: TokenData) {
     const redis = getRedis();
     const sessionToken = await this.generateSessionToken(userId);
 
-    // Redis'e kaydet
     await redis.setex(
       `access_token:${userId}`,
       tokenData.expires_in || 7200,
       tokenData.accessToken
     );
 
-    await redis.setex(
-      `session:${sessionToken}`,
-      86400,
-      JSON.stringify({
-        userId,
-        scope: tokenData.scope,
-        tokenType: tokenData.tokentype,
-      })
-    );
-
-    // 🎯 SORUN: userId burada session UUID, User.id değil!
-    // RefreshToken'ı kaydetmeden önce User'ı oluştur/bul
+    // await redis.setex(
+    //   `session:${sessionToken}`,
+    //   86400,
+    //   JSON.stringify({
+    //     userId,
+    //     scope: tokenData.scope,
+    //     tokenType: tokenData.tokentype,
+    //   })
+    // );
 
     if (tokenData.refreshToken) {
       try {
         const prisma = getPrismaClient();
+        // Dont know the actual expiration from Kick, so I set it to 30 days.
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-        // ❌ YANLIŞ: Doğrudan userId kullanma
-        // await prisma.refreshToken.create({
-        //   data: {
-        //     token: tokenData.refreshToken,
-        //     userId, // Bu session UUID, User.id değil!
-
-        // ✅ DOĞRU: Önce user'ı session ile bul, sonra refreshToken'ı kaydet
-        console.log("Looking for user with sessionId:", userId);
 
         const user = await prisma.user.findFirst({
           where: { sessionId: userId },
@@ -119,21 +104,17 @@ export class TokenManager {
         if (!user) {
           console.warn("⚠️ User not found for sessionId:", userId);
           console.warn("RefreshToken will not be saved to database");
-          return sessionToken; // Redis çalışıyor, DB'siz devam et
+          return sessionToken;
         }
 
-        console.log("Found user:", user.username, "with ID:", user.id);
-
-        // Eski refresh token'ları sil
         await prisma.refreshToken.deleteMany({
-          where: { userId: user.id }, // ✅ Doğru User.id kullan
+          where: { userId: user.id },
         });
 
-        // Yeni refresh token'ı kaydet
         await prisma.refreshToken.create({
           data: {
             token: tokenData.refreshToken,
-            userId: user.id, // ✅ Doğru User.id kullan
+            userId: user.id,
             expiresAt,
             sessionToken,
           },
@@ -142,7 +123,6 @@ export class TokenManager {
         console.log("✅ RefreshToken saved successfully");
       } catch (dbError) {
         console.error("❌ Failed to save refresh token:", dbError);
-        // Redis çalışıyor, DB hatası critical değil
       }
     }
 
@@ -151,7 +131,7 @@ export class TokenManager {
 
   static async getSessionData(sessionToken: string) {
     try {
-      const redis = getRedis(); // Lazy load
+      const redis = getRedis();
 
       const payload = await this.verifySessionToken(sessionToken);
       if (!payload || !payload.userId) {
@@ -160,19 +140,19 @@ export class TokenManager {
 
       const userId = payload.userId as string;
 
-      const sessionData = await redis.get(`session:${sessionToken}`);
-      if (!sessionData) {
-        return null;
-      }
+      // const sessionData = await redis.get(`session:${sessionToken}`);
+      // if (!sessionData) {
+      //   return null;
+      // }
 
-      const parsed = JSON.parse(sessionData);
+      // const parsed = JSON.parse(sessionData);
       const accessToken = await this.getAccessToken(userId);
 
       return {
         userId,
         accessToken,
-        scope: parsed.scope,
-        tokenType: parsed.tokenType,
+        // scope: parsed.scope,
+        // tokenType: parsed.tokenType,
       };
     } catch (error) {
       console.error("Error getting session data:", error);

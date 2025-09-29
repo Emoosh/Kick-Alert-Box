@@ -1,6 +1,6 @@
-// components/VideoManager.tsx - Modal ile video preview
+// src/app/components/VideoManager.tsx - Sesli autoplay ile güncelle
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface Video {
   id: string;
@@ -24,9 +24,10 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Video modal state'leri ekle
+  // ✅ Video modal state'leri
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null); // ✅ Video ref ekle
 
   // Videoları yükle
   const fetchVideos = async () => {
@@ -53,19 +54,59 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
     fetchVideos();
   }, []);
 
-  // ✅ Video preview aç
+  // ✅ Video preview aç - User click ile sesli oynat
   const openVideoPreview = (video: Video) => {
     setSelectedVideo(video);
     setIsModalOpen(true);
+
+    // ✅ Modal açıldıktan sonra hemen sesli oynat
+    setTimeout(async () => {
+      if (videoRef.current) {
+        try {
+          // ✅ User interaction sayesinde sesli oynatabilir
+          videoRef.current.muted = false; // ✅ Sesli!
+          videoRef.current.volume = 0.8; // ✅ Volume ayarla
+          await videoRef.current.play();
+
+          console.log("✅ Video started with sound!");
+        } catch (error) {
+          console.error("❌ Autoplay failed:", error);
+
+          // ✅ Fallback: Muted ile dene
+          try {
+            videoRef.current.muted = true;
+            await videoRef.current.play();
+            console.log("✅ Video started muted, click to unmute");
+          } catch (mutedError) {
+            console.error("❌ Even muted autoplay failed:", mutedError);
+          }
+        }
+      }
+    }, 100); // ✅ Modal DOM'a render edildikten sonra
   };
 
   // ✅ Video preview kapat
   const closeVideoPreview = () => {
+    // ✅ Video'yu durdur
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+
     setSelectedVideo(null);
     setIsModalOpen(false);
   };
 
-  // ✅ ESC tuşu ile kapat
+  // ✅ Video'ya tıklayınca unmute (fallback için)
+  const handleVideoClick = () => {
+    if (videoRef.current && videoRef.current.muted) {
+      videoRef.current.muted = false;
+      videoRef.current.volume = 0.8;
+      console.log("🔊 Video unmuted by click");
+    }
+  };
+
+  // ESC tuşu ile kapat
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && isModalOpen) {
@@ -75,7 +116,6 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
 
     if (isModalOpen) {
       document.addEventListener("keydown", handleEscKey);
-      // Body scroll'u engelle
       document.body.style.overflow = "hidden";
     }
 
@@ -107,7 +147,6 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
       if (data.success) {
         setVideos(videos.filter((v) => v.id !== videoId));
 
-        // Eğer silinen video preview'de açıksa kapat
         if (selectedVideo?.id === videoId) {
           closeVideoPreview();
         }
@@ -297,7 +336,7 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Video Preview
+                  🔊 Video Preview (With Sound)
                 </h3>
                 <p className="text-sm text-gray-600 truncate">
                   {selectedVideo.videoName}
@@ -315,16 +354,34 @@ export function VideoManager({ onVideoDeleted }: VideoManagerProps) {
             {/* Video Player */}
             <div className="mb-4">
               <video
-                className="w-full max-h-96 bg-black rounded"
+                ref={videoRef} // ✅ Ref ekle
+                className="w-full max-h-96 bg-black rounded cursor-pointer"
                 controls
-                autoPlay
-                muted
+                onClick={handleVideoClick} // ✅ Click ile unmute fallback
                 src={selectedVideo.videoUrl}
+                preload="auto"
+                onLoadedData={() => {
+                  // ✅ Video yüklendiğinde de deneme yap
+                  if (videoRef.current) {
+                    videoRef.current.muted = false;
+                    videoRef.current.volume = 0.8;
+                    videoRef.current.play().catch(() => {
+                      console.log("Autoplay on load failed");
+                    });
+                  }
+                }}
               >
                 <source src={selectedVideo.videoUrl} type="video/webm" />
                 <source src={selectedVideo.videoUrl} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
+
+              {/* ✅ Sound indicator */}
+              <div className="flex items-center justify-center mt-2">
+                <span className="text-sm text-gray-600">
+                  🔊 Playing with sound - Click video if muted
+                </span>
+              </div>
             </div>
 
             {/* Video Info */}

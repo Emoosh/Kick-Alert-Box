@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const params = new URLSearchParams(url.search);
 
-    // OAuth error kontrolü
     if (params.get("error")) {
       console.error("OAuth error:", params.get("error"));
       return NextResponse.redirect(
@@ -25,7 +24,6 @@ export async function GET(request: NextRequest) {
     const receivedState = params.get("state");
     const authCode = params.get("code");
 
-    // Güvenlik kontrolleri
     if (!code_verifier || !state || !receivedState || !authCode) {
       console.error("Missing required parameters");
       return NextResponse.redirect(
@@ -33,7 +31,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // State parameter doğrulama
     if (state !== receivedState) {
       console.error("State mismatch: CSRF attack detected");
       return NextResponse.redirect(
@@ -45,9 +42,7 @@ export async function GET(request: NextRequest) {
 
     // OAuth token exchange
     const tokens = await handleCallback(url, code_verifier, state);
-    console.log("✅ OAuth tokens received");
 
-    // 🎯 1. USER BİLGİLERİNİ AL VE DATABASE'E KAYDET
     const sessionId = crypto.randomUUID();
     console.log("Generated session ID:", sessionId);
 
@@ -65,25 +60,29 @@ export async function GET(request: NextRequest) {
       token_type: tokenIntrospectResponse.data.token_type,
     };
 
-    // User bilgilerini al
+    // Get the current user infos.
     const userResponse = await getCurrentUser(tokens.access_token);
     const userData = userResponse.data[0];
 
-    // 🎯 User'ı database'e kaydet (sessionId ile)
+    // Save the important informations about user to DB.
     const dbUser = await UserService.createOrUpdateUser({
       kickUserId: userData.user_id.toString(),
       username: userData.name,
       email: userData.email,
       profilePicture: userData.profile_picture,
-      sessionId: sessionId, // ✅ Session ID'yi burada set et
+      sessionId: sessionId,
       accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
       tokenInfo: tokenInfo,
       scope: tokenInfo.scope.split(" "),
     });
 
     console.log("✅ User saved to database with sessionId:", sessionId);
 
-    // 🎯 2. ŞİMDİ TOKEN MANAGER'DA SESSION OLUŞTUR
+    // Create a sesssion token associated with the user.
+    // But I do not want to create a session token includes refresh token in it.
+    // I prefer to keep it in my database only.
+    // However i send it to token manager in there i will set the refresh token to database.
     const sessionToken = await TokenManager.setTokens(sessionId, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,

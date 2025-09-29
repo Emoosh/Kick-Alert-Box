@@ -19,7 +19,6 @@ model User {
   email           String?
   profilePicture  String?
   sessionId       String?   // JWT session ID
-  accessToken     String?   // Encrypted access token
   tokenInfo       Json?     // Token introspect bilgileri
   scope           String[]  @default([])
   settings        Json?     @default("{}")
@@ -31,6 +30,7 @@ model User {
 
   // Relations
   refreshTokens   RefreshToken[]
+  accessTokens AccessToken[]
   alerts          Alert[]
   webhooks        Webhook[]
   alertVideos     AlertVideo[]
@@ -57,28 +57,43 @@ model AlertVideo {
   @@map("alert_videos")
 }
 
+model AccessToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  isActive     Boolean  @default(true)
+  lastUsedAt   DateTime @default(now())
+  deviceInfo  String?  
+  ipAddress   String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@map("access_tokens")
+}
 model RefreshToken {
   id           String   @id @default(cuid())
   token        String   @unique
-  userId       String   // User tablosundaki ID
-  sessionToken String?
+  userId       String   
   expiresAt    DateTime
   createdAt    DateTime @default(now())
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  isActive     Boolean  @default(true)
+  lastUsedAt   DateTime @default(now())
+  deviceInfo  String?  
+  ipAddress   String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("refresh_tokens")
 }
 
 model Alert {
   id        String   @id @default(cuid())
   userId    String
-  type      String   // "follow", "subscribe", "tip"
-  username  String   // Alert gönderen kişi
+  type      String   
+  username  String   
   message   String?
-  amount    Float?   // tip amount
-  data      Json?    // extra data
+  amount    Float?  
+  data      Json?    
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

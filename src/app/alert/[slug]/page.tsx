@@ -193,7 +193,7 @@ export default function AlertPage({
                       {alertData.type === "tip" && "💰"}
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-1">
-                      {alertData.type === "follow" && "NEW FOLLOWER!"}
+                      {alertData.type === "follow" && "HOŞ GELDİN KANKİM"}
                       {alertData.type === "subscribe" && "NEW SUBSCRIBER!"}
                       {alertData.type === "tip" && "NEW TIP!"}
                     </h2>
@@ -224,19 +224,6 @@ export default function AlertPage({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ✅ DEBUG: Connection Status (Sadece development'ta görünsün) */}
-      {process.env.NODE_ENV === "development" && (
-        <div className="fixed top-4 right-4 z-40">
-          <div
-            className={`px-3 py-1 rounded text-sm ${
-              isConnected ? "bg-green-600 text-white" : "bg-red-600 text-white"
-            }`}
-          >
-            {isConnected ? "🟢 Connected" : "🔴 Disconnected"}
-          </div>
         </div>
       )}
     </>

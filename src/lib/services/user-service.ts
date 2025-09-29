@@ -1,4 +1,3 @@
-// src/lib/services/user-service.ts
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -10,25 +9,23 @@ export interface CreateUserData {
   profilePicture?: string;
   sessionId: string;
   accessToken: string;
+  refreshToken: string;
   tokenInfo: any;
   scope: string[];
+  deviceInfo?: string;
+  ipAddress?: string;
 }
 
 export class UserService {
   static async createOrUpdateUser(userData: CreateUserData) {
     try {
-      // User'ı kickUserId'ye göre bul veya oluştur
       const user = await prisma.user.upsert({
-        where: {
-          kickUserId: userData.kickUserId,
-        },
+        where: { kickUserId: userData.kickUserId },
         update: {
           username: userData.username,
           email: userData.email,
           profilePicture: userData.profilePicture,
           sessionId: userData.sessionId,
-          // Access token'ı encrypted olarak kaydet (opsiyonel)
-          accessToken: userData.accessToken,
           tokenInfo: userData.tokenInfo,
           scope: userData.scope,
           lastLoginAt: new Date(),
@@ -41,7 +38,6 @@ export class UserService {
           email: userData.email,
           profilePicture: userData.profilePicture,
           sessionId: userData.sessionId,
-          accessToken: userData.accessToken,
           tokenInfo: userData.tokenInfo,
           scope: userData.scope,
           lastLoginAt: new Date(),
@@ -49,11 +45,87 @@ export class UserService {
         },
       });
 
+      if (userData.accessToken) {
+        await this.saveAccessToken(
+          userData.accessToken,
+          user.id,
+          new Date(Date.now() + 3600 * 1000),
+          new Date(),
+          userData.deviceInfo,
+          userData.ipAddress
+        );
+      }
+
+      if (userData.refreshToken) {
+        await this.saveRefreshToken(
+          userData.refreshToken,
+          user.id,
+          new Date(Date.now() + 30 * 24 * 3600 * 1000),
+          new Date(),
+          userData.deviceInfo,
+          userData.ipAddress
+        );
+      }
+
       return user;
     } catch (error) {
       console.error("Error creating/updating user:", error);
       throw error;
     }
+  }
+
+  static async saveAccessToken(
+    accessToken: string,
+    userId: string,
+    expiresAt: Date,
+    createdAt: Date,
+    deviceInfo?: string,
+    ipAddress?: string
+  ) {
+    return await prisma.accessToken.upsert({
+      where: { token: accessToken },
+      update: {
+        expiresAt,
+        createdAt,
+        deviceInfo,
+        ipAddress,
+      },
+      create: {
+        token: accessToken,
+        userId,
+        expiresAt,
+        createdAt,
+        deviceInfo,
+        ipAddress,
+      },
+    });
+  }
+
+  static async saveRefreshToken(
+    refreshToken: string,
+    userId: string,
+    expiresAt: Date,
+    createdAt: Date,
+    deviceInfo?: string,
+    ipAddress?: string
+  ) {
+    return await prisma.refreshToken.upsert({
+      where: { token: refreshToken }, // token unique ise
+      update: {
+        expiresAt,
+        createdAt,
+        deviceInfo,
+        ipAddress,
+      },
+      create: {
+        token: refreshToken,
+        userId,
+        expiresAt,
+        createdAt,
+        deviceInfo,
+        ipAddress,
+      },
+    });
   }
 
   static async getUserByKickId(kickUserId: string) {
