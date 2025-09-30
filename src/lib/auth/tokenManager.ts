@@ -1,6 +1,7 @@
 import { getRedisClient } from "../redis/redis";
 import { SignJWT, jwtVerify } from "jose";
 import { PrismaClient } from "@prisma/client";
+import { encrypt, decrypt } from "@/lib/utils/crypto";
 
 let prisma: PrismaClient;
 let redis: any;
@@ -65,52 +66,55 @@ export class TokenManager {
     return (payload?.userId as string) || null;
   }
 
-  // Kullanıcı login olduğunda access/refresh token'ı kaydet
   static async setTokens(
-    userId: string,
+    sessionId: string,
     tokenData: TokenData,
+    userId: string,
     deviceInfo?: string,
     ipAddress?: string
   ) {
     const redis = getRedis();
     const prisma = getPrismaClient();
-    const sessionToken = await this.generateSessionToken(userId);
+    const sessionToken = await this.generateSessionToken(sessionId);
 
-    // Access token'ı Redis'e kaydet
+    // Encrpyt both tokens for security issues.
+
+    const encryptedAccessToken = encrypt(tokenData.accessToken);
+    const encryptedRefreshToken = encrypt(tokenData.refreshToken);
+
     await redis.setex(
-      `access_token:${userId}`,
+      `access_token:${sessionId}`,
       tokenData.expires_in || 7200,
-      tokenData.accessToken
+      encryptedAccessToken
     );
 
-    // AccessToken tablosuna kaydet/güncelle
+    console.log(sessionId + " tokens are cached in Redis");
     await prisma.accessToken.upsert({
-      where: { token: tokenData.accessToken },
+      where: { token: encryptedAccessToken },
       update: {
         expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
         deviceInfo,
         ipAddress,
       },
       create: {
-        token: tokenData.accessToken,
-        userId,
+        token: encryptedAccessToken,
+        userId: userId,
         expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
         deviceInfo,
         ipAddress,
       },
     });
 
-    // RefreshToken tablosuna kaydet/güncelle
-    if (tokenData.refreshToken) {
+    if (encryptedRefreshToken) {
       await prisma.refreshToken.upsert({
-        where: { token: tokenData.refreshToken },
+        where: { token: encryptedRefreshToken },
         update: {
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           deviceInfo,
           ipAddress,
         },
         create: {
-          token: tokenData.refreshToken,
+          token: encryptedRefreshToken,
           userId,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           deviceInfo,
@@ -120,6 +124,13 @@ export class TokenManager {
     }
 
     return sessionToken;
+  }
+  static async getDecryptedAccessToken(sessionId: string): Promise<string> {
+    const encryptedToken = await this.getAccessToken(sessionId);
+
+    if (!encryptedToken) throw new Error("No access token found");
+
+    return decrypt(encryptedToken);
   }
 
   // Session'dan access token al
@@ -138,17 +149,17 @@ export class TokenManager {
     }
   }
 
-  static async getAccessToken(userId: string): Promise<string | null> {
+  static async getAccessToken(sessionId: string): Promise<string | null> {
     const redis = getRedis();
     const prisma = getPrismaClient();
 
-    // Önce Redis'ten dene
-    const accessToken = await redis.get(`access_token:${userId}`);
-    if (accessToken) return accessToken;
+    const encryptedAccessToken = await redis.get(`access_token:${sessionId}`);
+    if (encryptedAccessToken) return decrypt(encryptedAccessToken);
 
     // DB'den en güncel access token'ı bul
+    const userId = sessionId;
     const accessTokenRecord = await prisma.accessToken.findFirst({
-      where: { userId, expiresAt: { gt: new Date() } },
+      where: { userId: userId, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
     });
 

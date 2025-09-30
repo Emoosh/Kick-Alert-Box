@@ -83,13 +83,17 @@ export async function GET(request: NextRequest) {
     // But I do not want to create a session token includes refresh token in it.
     // I prefer to keep it in my database only.
     // However i send it to token manager in there i will set the refresh token to database.
-    const sessionToken = await TokenManager.setTokens(sessionId, {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      expires_in: tokens.expires_in || 7200,
-      scope: tokenInfo.scope.split(" "),
-      tokentype: tokens.token_type || "Bearer",
-    });
+    const sessionToken = await TokenManager.setTokens(
+      sessionId,
+      {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expires_in: tokens.expires_in || 7200,
+        scope: tokenInfo.scope.split(" "),
+        tokentype: tokens.token_type || "Bearer",
+      },
+      dbUser.id
+    );
 
     console.log("✅ Session token created");
 
