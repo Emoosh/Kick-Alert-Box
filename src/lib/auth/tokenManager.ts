@@ -1,3 +1,4 @@
+// src/lib/auth/tokenManager.ts
 import { getRedisClient } from "../redis/redis";
 import { SignJWT, jwtVerify } from "jose";
 import { PrismaClient } from "@prisma/client";
@@ -28,6 +29,17 @@ export interface TokenData {
   tokentype: string;
 }
 
+// ✅ JWT Payload interface
+export interface SessionPayload {
+  userId: string;
+  kickUserId: string;
+  clientId: string;
+  ipAddress?: string;
+  deviceInfo?: string;
+  scope: string[];
+  type: "session";
+}
+
 export class TokenManager {
   private static getJWTSecret(): Uint8Array {
     const secret = process.env.JWT_SECRET;
@@ -35,71 +47,158 @@ export class TokenManager {
     return new TextEncoder().encode(secret);
   }
 
-  private static async generateSessionToken(userId: string): Promise<string> {
+  // ✅ Meaningful bilgilerle JWT session token oluştur
+  private static async generateSessionToken(payload: {
+    userId: string;
+    kickUserId: string;
+    ipAddress?: string;
+    deviceInfo?: string;
+    scope: string[];
+  }): Promise<string> {
     const secret = this.getJWTSecret();
-    return await new SignJWT({ userId, type: "session" })
+    const clientId = process.env.KICK_CLIENT_ID;
+
+    if (!clientId) throw new Error("KICK_CLIENT_ID is required");
+
+    const sessionPayload: SessionPayload = {
+      userId: payload.userId,
+      kickUserId: payload.kickUserId,
+      clientId,
+      ipAddress: payload.ipAddress,
+      deviceInfo: payload.deviceInfo,
+      scope: payload.scope,
+      type: "session",
+    };
+
+    return await new SignJWT({ ...sessionPayload })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("24h")
+      .setExpirationTime("2d") // 2 day validity
       .sign(secret);
   }
 
-  private static async verifySessionToken(token: string) {
+  private static async verifySessionToken(
+    token: string
+  ): Promise<SessionPayload | null> {
     try {
       const secret = this.getJWTSecret();
       const { payload } = await jwtVerify(token, secret);
-      return payload;
-    } catch {
+      return payload as unknown as SessionPayload;
+    } catch (error) {
+      console.error("JWT verification failed:", error);
+      return null;
+    }
+  }
+
+  static async getSessionData(sessionToken: string): Promise<{
+    sessionPayload: SessionPayload;
+    accessToken: string;
+  } | null> {
+    try {
+      // 1- Verify the session token
+      const payload = await this.verifySessionToken(sessionToken);
+      if (!payload) return null;
+
+      // 2- Get the access token
+      const accessToken = await this.getValidAccessToken(sessionToken);
+      return {
+        sessionPayload: {
+          userId: payload.userId,
+          kickUserId: payload.kickUserId,
+          clientId: payload.clientId,
+          ipAddress: payload.ipAddress,
+          deviceInfo: payload.deviceInfo,
+          scope: payload.scope,
+          type: payload.type,
+        },
+        accessToken: accessToken ?? "",
+      };
+    } catch (error) {
+      console.error("Error getting session data:", error);
       return null;
     }
   }
 
   static async isSessionValid(sessionToken: string): Promise<boolean> {
     const payload = await this.verifySessionToken(sessionToken);
-    return !!payload;
+    return !!payload && payload.type === "session";
   }
 
   static async getUserIdFromSession(
     sessionToken: string
   ): Promise<string | null> {
     const payload = await this.verifySessionToken(sessionToken);
-    return (payload?.userId as string) || null;
+    return payload?.userId || null;
   }
 
-  static async setTokens(
-    sessionId: string,
-    tokenData: TokenData,
+  // ✅ Session payload'ından tüm bilgileri al
+  static async getSessionPayload(
+    sessionToken: string
+  ): Promise<SessionPayload | null> {
+    return await this.verifySessionToken(sessionToken);
+  }
+
+  static async storeTokens(
     userId: string,
+    accessToken: string,
+    refreshToken: string,
+    expires_in: number,
+    scope: string[],
+    kickUserId?: string,
     deviceInfo?: string,
     ipAddress?: string
-  ) {
+  ): Promise<string> {
     const redis = getRedis();
     const prisma = getPrismaClient();
-    const sessionToken = await this.generateSessionToken(sessionId);
 
-    // Encrpyt both tokens for security issues.
+    if (!kickUserId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { kickUserId: true },
+      });
+      kickUserId = user?.kickUserId;
+    }
 
-    const encryptedAccessToken = encrypt(tokenData.accessToken);
-    const encryptedRefreshToken = encrypt(tokenData.refreshToken);
+    if (!kickUserId) {
+      throw new Error("KickUserId not found");
+    }
 
+    const sessionToken = await this.generateSessionToken({
+      userId,
+      kickUserId,
+      ipAddress,
+      deviceInfo,
+      scope,
+    });
+
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedRefreshToken = encrypt(refreshToken);
+
+    // Redis cache
     await redis.setex(
-      `access_token:${sessionId}`,
-      tokenData.expires_in || 7200,
+      `access_token:${userId}`,
+      expires_in || 7200,
       encryptedAccessToken
     );
 
-    console.log(sessionId + " tokens are cached in Redis");
+    console.log(`✅ Tokens cached for user ${userId}`);
+
+    // Database storage
     await prisma.accessToken.upsert({
-      where: { token: encryptedAccessToken },
+      where: { userId },
       update: {
-        expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
+        token: encryptedAccessToken,
+        expiresAt: new Date(Date.now() + (expires_in || 7200) * 1000),
+        scope: scope, // scope is a string[]
         deviceInfo,
         ipAddress,
+        lastUsedAt: new Date(),
       },
       create: {
         token: encryptedAccessToken,
-        userId: userId,
-        expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000),
+        userId,
+        scope, // scope is a string[]
+        expiresAt: new Date(Date.now() + (expires_in || 7200) * 1000),
         deviceInfo,
         ipAddress,
       },
@@ -107,11 +206,13 @@ export class TokenManager {
 
     if (encryptedRefreshToken) {
       await prisma.refreshToken.upsert({
-        where: { token: encryptedRefreshToken },
+        where: { userId },
         update: {
+          token: encryptedRefreshToken,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           deviceInfo,
           ipAddress,
+          lastUsedAt: new Date(),
         },
         create: {
           token: encryptedRefreshToken,
@@ -125,65 +226,66 @@ export class TokenManager {
 
     return sessionToken;
   }
-  static async getDecryptedAccessToken(sessionId: string): Promise<string> {
-    const encryptedToken = await this.getAccessToken(sessionId);
 
-    if (!encryptedToken) throw new Error("No access token found");
+  // ✅ Session token'dan access token al
+  static async getValidAccessToken(
+    sessionToken: string
+  ): Promise<string | null> {
+    const payload = await this.verifySessionToken(sessionToken);
+    if (!payload) return null;
 
-    return decrypt(encryptedToken);
-  }
-
-  // Session'dan access token al
-  static async getSessionData(sessionToken: string) {
-    try {
-      const redis = getRedis();
-      const payload = await this.verifySessionToken(sessionToken);
-      if (!payload || !payload.userId) return null;
-      const userId = payload.userId as string;
-
-      const accessToken = await this.getAccessToken(userId);
-      return { userId, accessToken };
-    } catch (error) {
-      console.error("Error getting session data:", error);
-      return null;
-    }
-  }
-
-  static async getAccessToken(sessionId: string): Promise<string | null> {
+    const userId = payload.userId;
     const redis = getRedis();
     const prisma = getPrismaClient();
 
-    const encryptedAccessToken = await redis.get(`access_token:${sessionId}`);
-    if (encryptedAccessToken) return decrypt(encryptedAccessToken);
+    // Redis'den çek
+    const encryptedToken = await redis.get(`access_token:${userId}`);
+    if (encryptedToken) {
+      return decrypt(encryptedToken);
+    }
 
-    // DB'den en güncel access token'ı bul
-    const userId = sessionId;
-    const accessTokenRecord = await prisma.accessToken.findFirst({
-      where: { userId: userId, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
+    // DB'den çek
+    const accessTokenRecord = await prisma.accessToken.findUnique({
+      where: { userId, expiresAt: { gt: new Date() } },
     });
 
     if (accessTokenRecord) {
-      await redis.setex(
-        `access_token:${userId}`,
-        Math.floor((accessTokenRecord.expiresAt.getTime() - Date.now()) / 1000),
-        accessTokenRecord.token
+      // Redis'e geri koy
+      const ttl = Math.floor(
+        (accessTokenRecord.expiresAt.getTime() - Date.now()) / 1000
       );
-      return accessTokenRecord.token;
+      await redis.setex(`access_token:${userId}`, ttl, accessTokenRecord.token);
+      return decrypt(accessTokenRecord.token);
     }
 
-    // Refresh token ile yeni access token iste (opsiyonel)
-    const refreshTokenRecord = await prisma.refreshToken.findFirst({
+    // Refresh token ile yenile
+    return await this.refreshAccessToken(userId);
+  }
+
+  private static async refreshAccessToken(
+    userId: string
+  ): Promise<string | null> {
+    const prisma = getPrismaClient();
+
+    const refreshTokenRecord = await prisma.refreshToken.findUnique({
       where: { userId, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
     });
 
-    if (refreshTokenRecord) {
-      const newTokens = await this.requestNewTokens(refreshTokenRecord.token);
-      if (newTokens) {
-        await this.setTokens(userId, newTokens);
-        return newTokens.accessToken;
-      }
+    if (!refreshTokenRecord) return null;
+
+    const decryptedRefreshToken = decrypt(refreshTokenRecord.token);
+    const newTokens = await this.requestNewTokens(decryptedRefreshToken);
+
+    if (newTokens) {
+      // Yeni token'ları sakla (eski session bilgileriyle)
+      await this.storeTokens(
+        userId,
+        newTokens.accessToken,
+        newTokens.refreshToken,
+        newTokens.expires_in,
+        newTokens.scope
+      );
+      return newTokens.accessToken;
     }
 
     return null;
@@ -195,8 +297,10 @@ export class TokenManager {
     try {
       const clientId = process.env.KICK_CLIENT_ID;
       const clientSecret = process.env.KICK_CLIENT_SECRET;
-      if (!clientId || !clientSecret)
+
+      if (!clientId || !clientSecret) {
         throw new Error("KICK_CLIENT_ID and KICK_CLIENT_SECRET are required");
+      }
 
       const response = await fetch("https://id.kick.com/oauth/token", {
         method: "POST",
@@ -209,8 +313,10 @@ export class TokenManager {
         }),
       });
 
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
       return {
         accessToken: data.access_token,
@@ -225,20 +331,23 @@ export class TokenManager {
     }
   }
 
-  static async deleteSession(sessionToken: string) {
+  static async deleteSession(sessionToken: string): Promise<void> {
     try {
+      const payload = await this.verifySessionToken(sessionToken);
+      if (!payload) return;
+
       const redis = getRedis();
       const prisma = getPrismaClient();
-      const payload = await this.verifySessionToken(sessionToken);
-      if (payload && payload.userId) {
-        const userId = payload.userId as string;
+      const userId = payload.userId;
 
-        await redis.del(`access_token:${userId}`);
-        // İlgili access/refresh token kayıtlarını DB'den silmek istersen:
-        await prisma.accessToken.deleteMany({ where: { userId } });
-        await prisma.refreshToken.deleteMany({ where: { userId } });
-        console.log("✅ Session tokens cleared from DB and Redis");
-      }
+      // Redis'den sil
+      await redis.del(`access_token:${userId}`);
+
+      // DB'den sil
+      await prisma.accessToken.deleteMany({ where: { userId } });
+      await prisma.refreshToken.deleteMany({ where: { userId } });
+
+      console.log(`✅ Session cleared for user ${userId}`);
     } catch (error) {
       console.error("Error deleting session:", error);
     }

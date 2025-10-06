@@ -5,67 +5,62 @@ const prisma = new PrismaClient();
 export interface CreateUserData {
   kickUserId: string;
   username: string;
-  email?: string;
+  email: string;
   profilePicture?: string;
-  sessionId: string;
-  accessToken: string;
-  refreshToken: string;
-  tokenInfo: any;
-  scope: string[];
   deviceInfo?: string;
   ipAddress?: string;
+  subscriptionEndsAt?: Date;
 }
 
 export class UserService {
   static async createOrUpdateUser(userData: CreateUserData) {
     try {
+      // Default subscription end date is set to 2 days.
+      const subscriptionEndDate =
+        userData.subscriptionEndsAt ||
+        new Date(Date.now() + 2 * 24 * 3600 * 1000);
+
       const user = await prisma.user.upsert({
         where: { kickUserId: userData.kickUserId },
         update: {
           username: userData.username,
           email: userData.email,
           profilePicture: userData.profilePicture,
-          sessionId: userData.sessionId,
-          tokenInfo: userData.tokenInfo,
-          scope: userData.scope,
           lastLoginAt: new Date(),
-          isActive: true,
           updatedAt: new Date(),
+          subscriptionEndsAt: subscriptionEndDate,
         },
         create: {
           kickUserId: userData.kickUserId,
           username: userData.username,
           email: userData.email,
           profilePicture: userData.profilePicture,
-          sessionId: userData.sessionId,
-          tokenInfo: userData.tokenInfo,
-          scope: userData.scope,
           lastLoginAt: new Date(),
-          isActive: true,
+          subscriptionEndsAt: subscriptionEndDate,
         },
       });
 
-      if (userData.accessToken) {
-        await this.saveAccessToken(
-          userData.accessToken,
-          user.id,
-          new Date(Date.now() + 3600 * 1000),
-          new Date(),
-          userData.deviceInfo,
-          userData.ipAddress
-        );
-      }
+      // if (userData.accessToken) {
+      //   await this.saveAccessToken(
+      //     userData.accessToken,
+      //     user.id,
+      //     new Date(Date.now() + 3600 * 1000),
+      //     new Date(),
+      //     userData.deviceInfo,
+      //     userData.ipAddress
+      //   );
+      // }
 
-      if (userData.refreshToken) {
-        await this.saveRefreshToken(
-          userData.refreshToken,
-          user.id,
-          new Date(Date.now() + 30 * 24 * 3600 * 1000),
-          new Date(),
-          userData.deviceInfo,
-          userData.ipAddress
-        );
-      }
+      // if (userData.refreshToken) {
+      //   await this.saveRefreshToken(
+      //     userData.refreshToken,
+      //     user.id,
+      //     new Date(Date.now() + 30 * 24 * 3600 * 1000),
+      //     new Date(),
+      //     userData.deviceInfo,
+      //     userData.ipAddress
+      //   );
+      // }
 
       return user;
     } catch (error) {
@@ -131,12 +126,6 @@ export class UserService {
   static async getUserByKickId(kickUserId: string) {
     return await prisma.user.findUnique({
       where: { kickUserId },
-    });
-  }
-
-  static async getUserBySessionId(sessionId: string) {
-    return await prisma.user.findFirst({
-      where: { sessionId },
     });
   }
 

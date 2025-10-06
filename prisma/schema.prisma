@@ -43,7 +43,7 @@ model User {
   // sessionId       String?   @unique
   //  tokenInfo       Json?     // Token introspect bilgileri
   settings        Json?     @default("{}")
-  subscriptionEndsAt     DateTime   // Based on this field, we can both remove the subscription after the subscription expires and also show/hide certain features in the UI.
+  subscriptionEndsAt     DateTime?   // Based on this field, we can both remove the subscription after the subscription expires and also show/hide certain features in the UI.
   lastLoginAt     DateTime?
   lastActivityAt  DateTime?
   createdAt       DateTime  @default(now())
