@@ -11,56 +11,94 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+/**
+ * User model to store user information and related data.
+ *  id: Unique identifier for the user.
+ *  kickUserId: Unique Kick user ID.
+ * username: User's display name.
+  * email: User's email address.
+  * profilePicture: URL to the user's profile picture.
+  * settings: JSON field to store user-specific settings. Defaults to an empty JSON object.
+  * isActiveSubscriber: Boolean flag indicating if the user is an active subscriber. Defaults to false.
+  * lastLoginAt: Timestamp of the user's last login.
+  * lastActivityAt: Timestamp of the user's last activity.
+  * createdAt: Timestamp of when the user was created. Defaults to the current time.
+  * updatedAt: Timestamp of the last update to the user's record. Automatically updated on record modification.
+  * Relations:
+    * refreshTokens: One-to-one relation to the RefreshToken model.
+    * accessTokens: One-to-one relation to the AccessToken model.
+    * alerts: One-to-many relation to the Alert model.
+    * webhooks: One-to-many relation to the Webhook model.
+    * alertVideos: One-to-many relation to the AlertVideo model.
+    * sessions: One-to-many relation to the Session model.
+ */
 
+ 
 model User {
   id              String    @id @default(cuid())
   kickUserId      String    @unique
   username        String
-  email           String?
+  email           String
   profilePicture  String?
-  sessionId       String?   // JWT session ID
-  tokenInfo       Json?     // Token introspect bilgileri
-  scope           String[]  @default([])
+  // sessionId       String?   @unique
+  //  tokenInfo       Json?     // Token introspect bilgileri
   settings        Json?     @default("{}")
-  isActive        Boolean   @default(true)
+  isActiveSubscriber        Boolean   @default(false) // Based on this field, we can both remove the subscription after the subscription expires and also show/hide certain features in the UI.
   lastLoginAt     DateTime?
   lastActivityAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  refreshTokens   RefreshToken[]
-  accessTokens AccessToken[]
+  refreshTokens   RefreshToken?
+  accessTokens AccessToken?
   alerts          Alert[]
   webhooks        Webhook[]
   alertVideos     AlertVideo[]
+  sessions        Session[]
+  systemLogs      SystemLog[]    @relation("UserSystemLogs")
+  rateLimits      RateLimit[]    @relation("UserRateLimits")
   @@map("users")
 }
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  sessionId   String   @unique
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime @default(now())
+  isActive    Boolean  @default(true)
 
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
 model AlertVideo {
   id          String   @id @default(cuid())
   userId      String
-  alertType   String   // "follow", "subscribe", "tip"
-  videoUrl    String   // File path veya cloud URL
+  alertType   String   
+  videoUrl    String  
   videoName   String?
-  fileSize    Int?     // bytes
-  duration    Int?     // milliseconds
-  mimeType    String?  // "video/mp4", "video/webm"
+  fileSize    Int?     
+  duration    Int?    
+  mimeType    String? 
   isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0) // Video sıralaması için
+  sortOrder   Int      @default(0) 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, alertType, sortOrder]) // Her alert türü için max 5 video
+  @@unique([userId, alertType, sortOrder]) 
   @@map("alert_videos")
 }
 
 model AccessToken {
   id          String   @id @default(cuid())
   token       String   @unique
-  userId      String
+  userId      String   @unique
+  scope      String[]   @default([])
   expiresAt   DateTime
   createdAt   DateTime @default(now())
   isActive     Boolean  @default(true)
@@ -74,8 +112,9 @@ model AccessToken {
 model RefreshToken {
   id           String   @id @default(cuid())
   token        String   @unique
-  userId       String   
+  userId       String   @unique
   expiresAt    DateTime
+  //  scope      String[]   @default([]) I believe scope information for refresh token doesn't make sense for now.
   createdAt    DateTime @default(now())
   isActive     Boolean  @default(true)
   lastUsedAt   DateTime @default(now())
@@ -88,7 +127,7 @@ model RefreshToken {
 
 model Alert {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String   
   type      String   
   username  String   
   message   String?
@@ -105,11 +144,39 @@ model Webhook {
   id        String   @id @default(cuid())
   userId    String
   endpoint  String
-  events    String[] // ["follow", "subscribe", "tip"]
+  events    String[] 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@map("webhooks")
+}
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  userId    String?  
+  level     String   
+  message   String
+  context   Json?   
+  createdAt DateTime @default(now())
+  
+  user      User?    @relation("UserSystemLogs", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("system_logs")
+}
+
+
+model RateLimit {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   
+  requests  Int      @default(1)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation("UserRateLimits", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, endpoint]) 
+  @@map("rate_limits")
 }
