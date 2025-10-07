@@ -3,6 +3,7 @@ import { tokenIntrospect } from "../kick-api";
 import { getCurrentUser } from "../kick-api";
 import { UserService } from "./user-service";
 import { TokenManager } from "../auth/tokenManager";
+import { request } from "http";
 
 interface CallBackData {
   access_token: string;
@@ -72,6 +73,7 @@ export class UserCallbackService {
         callbackData.refresh_token,
         callbackData.expires_in,
         callbackData.scope.split(" ").map((s) => s.trim()),
+        userData.data[0].user_id.toString(),
         requestInfo?.deviceInfo,
         requestInfo?.ipAddress
       );
@@ -112,12 +114,4 @@ export class UserCallbackService {
     }
     return userDataResponse as userData;
   }
-
-  // 3. Save or update the user to database.
-  private static async saveOrUpdateUser(userData: any) {
-    // Save or update user logic here
-  }
-
-  // 5. Redirect to dashboard with session token in cookie.
-  private static async redirectToDashboard(sessionToken: string) {}
 }

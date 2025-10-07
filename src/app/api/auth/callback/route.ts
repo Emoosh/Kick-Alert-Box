@@ -45,76 +45,17 @@ export async function GET(request: NextRequest) {
     // OAuth token exchange
     const tokens = await handleCallback(url, code_verifier, state);
 
+    // In order to get Device info and ip address from the request:
+
+    // Request Info might be changed after in the middleware for security purposes.
+    const requestInfo = extractRequestInfo(request);
+
     // After this part consecutive steps will be:
     // 1. Token introspection to validate and get token info.
     // 2. Get the current user infos.
     // 3. Save or update the user to database.
     // 4. Create a session token for the user.
     // 5. Redirect to dashboard with session token in cookie.
-
-    // console.log("tokens: " + JSON.stringify(tokens));
-
-    // const sessionId = crypto.randomUUID();
-    // console.log("Generated session ID:", sessionId);
-
-    // Token introspect
-    // const tokenIntrospectResponse = await tokenIntrospect(tokens.access_token);
-    // if (!tokenIntrospectResponse) {
-    //   throw new Error("Failed to introspect token");
-    // }
-
-    // console.log(
-    //   "Token Introspect Response:: " + JSON.stringify(tokenIntrospectResponse)
-    // );
-    // const tokenInfo = {
-    //   active: tokenIntrospectResponse.data.active,
-    //   client_id: tokenIntrospectResponse.data.client_id,
-    //   exp: tokenIntrospectResponse.data.exp,
-    //   scope: tokenIntrospectResponse.data.scope,
-    //   token_type: tokenIntrospectResponse.data.token_type,
-    // };
-
-    // Get the current user infos.
-    // const userResponse = await getCurrentUser(tokens.access_token);
-
-    // console.log("User Response:: " + JSON.stringify(userResponse));
-    // const userData = userResponse.data[0];
-
-    // // Save the important informations about user to DB.
-    // const dbUser = await UserService.createOrUpdateUser({
-    //   kickUserId: userData.user_id.toString(),
-    //   username: userData.name,
-    //   email: userData.email,
-    //   profilePicture: userData.profile_picture,
-    //   sessionId: sessionId,
-    //   accessToken: tokens.access_token,
-    //   refreshToken: tokens.refresh_token,
-    //   tokenInfo: tokenInfo,
-    //   scope: tokenInfo.scope.split(" "),
-    // });
-
-    // console.log("✅ User saved to database with sessionId:", sessionId);
-
-    // Create a sesssion token associated with the user.
-    // But I do not want to create a session token includes refresh token in it.
-    // I prefer to keep it in my database only.
-    // However i send it to token manager in there i will set the refresh token to database.
-    // const sessionToken = await TokenManager.setTokens(
-    //   sessionId,
-    //   {
-    //     accessToken: tokens.access_token,
-    //     refreshToken: tokens.refresh_token,
-    //     expires_in: tokens.expires_in || 7200,
-    //     scope: tokenInfo.scope.split(" "),
-    //     tokentype: tokens.token_type || "Bearer",
-    //   },
-    //   dbUser.id
-    // );
-
-    // In order to get Device info and ip address from the request:
-
-    // Request Info might be changed after in the middleware for security purposes.
-    const requestInfo = extractRequestInfo(request);
 
     const result = await UserCallbackService.handleOAuthCallback(tokens, {
       deviceInfo: requestInfo.deviceInfo,

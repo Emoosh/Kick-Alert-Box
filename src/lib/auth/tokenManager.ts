@@ -51,8 +51,8 @@ export class TokenManager {
   private static async generateSessionToken(payload: {
     userId: string;
     kickUserId: string;
-    ipAddress?: string;
     deviceInfo?: string;
+    ipAddress?: string;
     scope: string[];
   }): Promise<string> {
     const secret = this.getJWTSecret();
@@ -64,12 +64,13 @@ export class TokenManager {
       userId: payload.userId,
       kickUserId: payload.kickUserId,
       clientId,
-      ipAddress: payload.ipAddress,
       deviceInfo: payload.deviceInfo,
+      ipAddress: payload.ipAddress,
       scope: payload.scope,
       type: "session",
     };
 
+    console.log("Generating session token with payload:", sessionPayload);
     return await new SignJWT({ ...sessionPayload })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -166,8 +167,8 @@ export class TokenManager {
     const sessionToken = await this.generateSessionToken({
       userId,
       kickUserId,
-      ipAddress,
       deviceInfo,
+      ipAddress,
       scope,
     });
 
@@ -183,6 +184,8 @@ export class TokenManager {
 
     console.log(`✅ Tokens cached for user ${userId}`);
 
+    console.log("Device Info:", deviceInfo);
+    console.log("IP Address:", ipAddress);
     // Database storage
     await prisma.accessToken.upsert({
       where: { userId },
