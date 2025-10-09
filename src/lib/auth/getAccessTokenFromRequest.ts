@@ -1,7 +1,9 @@
 // src/lib/auth/getAccessTokenFromRequest.ts
 import { NextRequest } from "next/server";
-import { TokenManager } from "./tokenManager";
+import { TokenManager, SubscriptionStatus } from "./tokenManager";
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 export async function getAccessTokenFromRequest(
   request: NextRequest
 ): Promise<string | null> {
@@ -15,7 +17,30 @@ export async function getAccessTokenFromRequest(
     }
 
     const sessionData = await TokenManager.getSessionData(session_token);
-    const accessToken = sessionData?.accessToken;
+    if (!sessionData) {
+      console.error("Session data is null or undefined");
+      return null;
+    }
+
+    const userId = sessionData.sessionPayload.userId;
+    if (!userId) {
+      console.log("No userId found in session data");
+      return null;
+    }
+
+    const isSubscriptionValid = await TokenManager.getSubscriptionStatus(
+      userId
+    );
+
+    if (isSubscriptionValid === SubscriptionStatus.SUB_INACTIVE) {
+      console.log("Subscription is inactive for userId:", userId);
+      return null;
+    }
+    if (isSubscriptionValid === SubscriptionStatus.SUB_ACTIVE_ACC_INACTIVE) {
+      // SEND REFRESH TOKEN REQUEST TO KICK API AND UPDATE ACCESS TOKEN IN DATABASE
+    }
+
+    const accessToken = sessionData.accessToken;
     if (!accessToken) {
       console.log("No access token found in session data");
       return null;

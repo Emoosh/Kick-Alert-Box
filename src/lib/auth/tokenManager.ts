@@ -7,6 +7,13 @@ import { encrypt, decrypt } from "@/lib/utils/crypto";
 let prisma: PrismaClient;
 let redis: any;
 
+export enum SubscriptionStatus {
+  SUB_ACTIVE_ACC_ACTIVE = "SubactiveAccessActive",
+  SUB_ACTIVE_ACC_INACTIVE = "SubactiveAccessInactive",
+  // SUB_INACTIVE_ACC_ACTIVE = "inactive_no_sub",
+  SUB_INACTIVE = "SubInactive",
+}
+
 function getPrismaClient() {
   if (!prisma) {
     prisma = new PrismaClient();
@@ -118,6 +125,25 @@ export class TokenManager {
       console.error("Error getting session data:", error);
       return null;
     }
+  }
+
+  static async getSubscriptionStatus(
+    userId: string
+  ): Promise<SubscriptionStatus> {
+    const prisma = getPrismaClient();
+
+    const userSubscription = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { subscriptionEndsAt: true },
+    });
+
+    const hasValidSubscription =
+      userSubscription?.subscriptionEndsAt &&
+      userSubscription.subscriptionEndsAt > new Date();
+
+    return hasValidSubscription
+      ? SubscriptionStatus.SUB_ACTIVE_ACC_INACTIVE
+      : SubscriptionStatus.SUB_INACTIVE_ACC_INACTIVE;
   }
 
   static async isSessionValid(sessionToken: string): Promise<boolean> {
