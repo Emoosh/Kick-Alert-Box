@@ -10,6 +10,8 @@ import {
   handleSubscriptionRenewal,
 } from "@/lib/webhook/webhook-handlers/webhookHandlers";
 
+import { checkBroadcasterSubscription } from "@/lib/webhook/webhook-handlers/webhookHandlers";
+import { TokenManager } from "@/lib/auth/tokenManager";
 export async function POST(request: NextRequest) {
   try {
     const requestClone = request.clone();
@@ -54,15 +56,35 @@ export async function POST(request: NextRequest) {
       console.error("Invalid webhook signature");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
-
-    // İmza doğrulama başarılı, webhook'u işleyin
-    // Body'yi parse edin (string -> JSON)
     const jsonBody = JSON.parse(body);
     console.log("Received valid webhook:", jsonBody);
 
-    // TODO: Webhook event'ini handle edin (örneğin, yayın başladı, bitti, vb.)
+    // To check the event broadcaster's subscription status
 
-    // WebHook handlers
+    // 1- Check if the broadcaster still has an active subscription.
+
+    const broadcasterUserId = jsonBody.broadcaster?.user_id;
+    if (!broadcasterUserId) {
+      console.error("No broadcaster user ID found in webhook payload");
+      return NextResponse.json(
+        { error: "No broadcaster user ID found" },
+        { status: 400 }
+      );
+    }
+
+    const isValidBroadcaster = await checkBroadcasterSubscription(
+      broadcasterUserId
+    );
+
+    // 2- If not, ignore the event that came and delete all subscriptions for the broadcaster.
+
+    if (!isValidBroadcaster) {
+      return NextResponse.json(
+        { error: "Broadcaster does not have an active subscription" },
+        { status: 400 }
+      );
+    }
+
     console.log("event type: ", eventType);
 
     switch (eventType) {

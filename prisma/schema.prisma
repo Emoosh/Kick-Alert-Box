@@ -53,7 +53,7 @@ model User {
   refreshTokens   RefreshToken?
   accessTokens AccessToken?
   alerts          Alert[]
-  webhooks        Webhook[]
+  eventSubscriptions EventSubscription[] 
   alertVideos     AlertVideo[]
   sessions        Session[]
   systemLogs      SystemLog[]    @relation("UserSystemLogs")
@@ -139,18 +139,23 @@ model Alert {
   
   @@map("alerts")
 }
-
-model Webhook {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String
-  events    String[] 
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+model EventSubscription {
+  id                    String   @id @default(cuid())
+  userId                String
+  kickSubscriptionId    String   @unique // Kick API'den gelen subscription ID
+  eventType             String   // "channel.follow", "channel.subscribe" etc.
+  broadcasterUserId     String   // Hangi broadcaster için
+  broadcasterUsername   String?  // Optional: broadcaster name
+  status                String   @default("active") // "active", "inactive", "pending"
+  webhookUrl            String?  // Webhook endpoint (optional)
+  createdAt             DateTime @default(now())
+  lastEventAt           DateTime? // Son event geldiği zaman
+  updatedAt             DateTime @updatedAt
   
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  @@map("webhooks")
+  @@unique([userId, eventType, broadcasterUserId]) // Duplicate subscription engelle
+  @@map("event_subscriptions")
 }
 
 model SystemLog {

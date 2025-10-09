@@ -4,15 +4,11 @@ import { SignJWT, jwtVerify } from "jose";
 import { PrismaClient } from "@prisma/client";
 import { encrypt, decrypt } from "@/lib/utils/crypto";
 
+import { getSubscription } from "@/lib/webhook/webhook-starters/get-subscriptions";
+import { deleteSubscription } from "@/lib/webhook/webhook-starters/delete-subscription";
+
 let prisma: PrismaClient;
 let redis: any;
-
-export enum SubscriptionStatus {
-  SUB_ACTIVE_ACC_ACTIVE = "SubactiveAccessActive",
-  SUB_ACTIVE_ACC_INACTIVE = "SubactiveAccessInactive",
-  // SUB_INACTIVE_ACC_ACTIVE = "inactive_no_sub",
-  SUB_INACTIVE = "SubInactive",
-}
 
 function getPrismaClient() {
   if (!prisma) {
@@ -107,7 +103,7 @@ export class TokenManager {
       const payload = await this.verifySessionToken(sessionToken);
       if (!payload) return null;
 
-      // 2- Get the access token
+      // 2- Get the access tokenprisma
       const accessToken = await this.getValidAccessToken(sessionToken);
       return {
         sessionPayload: {
@@ -125,25 +121,6 @@ export class TokenManager {
       console.error("Error getting session data:", error);
       return null;
     }
-  }
-
-  static async getSubscriptionStatus(
-    userId: string
-  ): Promise<SubscriptionStatus> {
-    const prisma = getPrismaClient();
-
-    const userSubscription = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { subscriptionEndsAt: true },
-    });
-
-    const hasValidSubscription =
-      userSubscription?.subscriptionEndsAt &&
-      userSubscription.subscriptionEndsAt > new Date();
-
-    return hasValidSubscription
-      ? SubscriptionStatus.SUB_ACTIVE_ACC_INACTIVE
-      : SubscriptionStatus.SUB_INACTIVE_ACC_INACTIVE;
   }
 
   static async isSessionValid(sessionToken: string): Promise<boolean> {
@@ -379,6 +356,186 @@ export class TokenManager {
       console.log(`✅ Session cleared for user ${userId}`);
     } catch (error) {
       console.error("Error deleting session:", error);
+    }
+  }
+
+  static async getSubscriptionStatus(userId: string): Promise<boolean> {
+    const prisma = getPrismaClient();
+
+    const userSubscription = await prisma.user.findUnique({
+      where: { kickUserId: userId },
+      select: { subscriptionEndsAt: true },
+    });
+
+    const hasValidSubscription =
+      !!userSubscription?.subscriptionEndsAt &&
+      userSubscription.subscriptionEndsAt > new Date();
+
+    return hasValidSubscription;
+  }
+
+  static async cancelAllEventSubscriptions(kickUserId: string): Promise<void> {
+    try {
+      console.log(`🧹 Cleaning up subscriptions for user: ${kickUserId}`);
+
+      // 1. User'ın access token'ını al
+      const accessToken = await this.getValidAccessTokenForUser(kickUserId);
+
+      if (!accessToken) {
+        console.log(`❌ No valid access token for user ${kickUserId}`);
+        return;
+      }
+
+      // 2. Mevcut subscription'ları al (get-subscriptions.ts kullanarak)
+      console.log(`🔍 Fetching subscriptions for user ${kickUserId}...`);
+      const subscriptionsResponse = await getSubscription(accessToken);
+
+      // Response'u parse et
+      const subscriptionsData = await subscriptionsResponse.json();
+
+      if (!subscriptionsData.data || subscriptionsData.data.length === 0) {
+        console.log(`ℹ️ No subscriptions found for user ${kickUserId}`);
+        return;
+      }
+
+      const subscriptions = subscriptionsData.data;
+      const subscriptionIds = subscriptions.map((sub: any) => sub.id);
+
+      console.log(
+        `📋 Found ${subscriptions.length} subscriptions to delete for user ${kickUserId}`
+      );
+      console.log(`🗂️ Subscription IDs:`, subscriptionIds);
+
+      // 3. Bütün subscription'ları sil (delete-subscription.ts kullanarak)
+      console.log(`🗑️ Deleting ${subscriptionIds.length} subscriptions...`);
+      const deleteResponse = await deleteSubscription(
+        accessToken,
+        subscriptionIds
+      );
+
+      // Response kontrolü
+      if (deleteResponse.status === 200) {
+        console.log(
+          `✅ Successfully deleted all subscriptions for user ${kickUserId}`
+        );
+      } else {
+        const errorData = await deleteResponse.json();
+        console.error(
+          `❌ Failed to delete subscriptions for user ${kickUserId}:`,
+          errorData
+        );
+      }
+
+      console.log(`🏁 Cleanup completed for user ${kickUserId}`);
+    } catch (error) {
+      console.error(
+        `❌ Error cleaning up subscriptions for user ${kickUserId}:`,
+        error
+      );
+    }
+  }
+
+  // ✅ User için valid access token al
+  private static async getValidAccessTokenForUser(
+    kickUserId: string
+  ): Promise<string | null> {
+    try {
+      const prisma = getPrismaClient();
+
+      // 1. KickUserId'den User ID'yi bul
+      const user = await prisma.user.findUnique({
+        where: { kickUserId },
+        select: { id: true, username: true },
+      });
+
+      if (!user) {
+        console.log(`❓ User not found for kickUserId: ${kickUserId}`);
+        return null;
+      }
+
+      console.log(`👤 Found user: ${user.username} (${user.id})`);
+
+      // 2. Access token'ı al (mevcut method'u kullan)
+      return await this.getValidAccessTokenfromUserId(user.id);
+    } catch (error) {
+      console.error(
+        `Error getting access token for user ${kickUserId}:`,
+        error
+      );
+      return null;
+    }
+  }
+
+  // ✅ getValidAccessToken method'unu düzenle (cleanup için de çalışsın)
+  static async getValidAccessTokenfromUserId(
+    userId: string
+  ): Promise<string | null> {
+    const redis = getRedis();
+    const prisma = getPrismaClient();
+
+    try {
+      // 1. Redis'den kontrol et
+      const encryptedToken = await redis.get(`access_token:${userId}`);
+      if (encryptedToken) {
+        console.log(`🎯 Found access token in Redis for user: ${userId}`);
+        return decrypt(encryptedToken);
+      }
+
+      // 2. DB'den kontrol et
+      const accessTokenRecord = await prisma.accessToken.findUnique({
+        where: { userId, expiresAt: { gt: new Date() } },
+      });
+
+      if (accessTokenRecord) {
+        console.log(`🎯 Found valid access token in DB for user: ${userId}`);
+        const decryptedToken = decrypt(accessTokenRecord.token);
+
+        // Redis'e cache'le
+        await redis.set(`access_token:${userId}`, accessTokenRecord.token, {
+          EX: 3600, // 1 saat
+        });
+
+        return decryptedToken;
+      }
+
+      // 3. Refresh token ile yenile (cleanup için - subscription kontrolü YOK)
+      console.log(`🔄 Attempting to refresh token for user: ${userId}`);
+      return await this.refreshAccessTokenForCleanup(userId);
+    } catch (error) {
+      console.error(`Error getting valid access token for ${userId}:`, error);
+      return null;
+    }
+  }
+
+  // ✅ Cleanup için özel refresh (subscription kontrolü olmadan)
+  private static async refreshAccessTokenForCleanup(
+    userId: string
+  ): Promise<string | null> {
+    const prisma = getPrismaClient();
+
+    try {
+      const refreshTokenRecord = await prisma.refreshToken.findUnique({
+        where: { userId, expiresAt: { gt: new Date() } },
+      });
+
+      if (!refreshTokenRecord) {
+        console.log(`❌ No valid refresh token for cleanup: ${userId}`);
+        return null;
+      }
+
+      const decryptedRefreshToken = decrypt(refreshTokenRecord.token);
+      const newTokens = await this.requestNewTokens(decryptedRefreshToken);
+
+      if (newTokens) {
+        console.log(`✅ Refreshed access token for cleanup: ${userId}`);
+        // Cleanup için sadece access token döndür, store etme
+        return newTokens.accessToken;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error refreshing token for cleanup ${userId}:`, error);
+      return null;
     }
   }
 }

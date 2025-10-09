@@ -4,9 +4,77 @@ import { getRedisClient } from "../../redis/redis";
 import { v4 as uuidv4 } from "uuid";
 
 import { hashSlug } from "../../hash/hash";
+import { TokenManager } from "@/lib/auth/tokenManager";
 
-// webhook-handlers.ts'te alert creation'ı debug et
-export async function handleChannelFollow(input_data: any) {
+interface FollowAlert {
+  broadcaster: {
+    is_anonymous: boolean;
+    user_id: number;
+    username: string;
+    is_verified: boolean;
+    profile_picture: string;
+    channel_slug: string;
+    identity: string | null;
+  };
+  follower: {
+    is_anonymous: boolean;
+    user_id: number;
+    username: string;
+    is_verified: boolean;
+    profile_picture: string;
+    channel_slug: string;
+    identity: string | null;
+  };
+}
+
+export async function checkBroadcasterSubscription(
+  kickUserId: number
+): Promise<boolean> {
+  console.log(`🔍 Checking subscription status for user: ${kickUserId}`);
+
+  // ✅ TokenManager'dan subscription durumunu al (boolean)
+  const hasActiveSubscription = await TokenManager.getSubscriptionStatus(
+    kickUserId.toString()
+  );
+
+  console.log(
+    `📊 User ${kickUserId} subscription active: ${hasActiveSubscription}`
+  );
+
+  // ✅ Subscription aktif - devam et
+  if (hasActiveSubscription) {
+    console.log(`✅ User ${kickUserId}: Active subscription, processing event`);
+    return true;
+  }
+
+  // ✅ Subscription bitmiş - bütün abonelikleri iptal et
+  console.log(
+    `🧹 User ${kickUserId}: Subscription expired, canceling all subscriptions`
+  );
+
+  // Async olarak cleanup yap (webhook'u bloke etmemek için)
+  setImmediate(async () => {
+    try {
+      await TokenManager.cancelAllEventSubscriptions(kickUserId.toString());
+    } catch (error) {
+      console.error(
+        `❌ Failed to cancel subscriptions for user ${kickUserId}:`,
+        error
+      );
+    }
+  });
+
+  return false;
+}
+
+// Handling the event types.
+export async function handleChannelFollow(input_data: FollowAlert) {
+  // if (!subStatus) {
+  //   console.log(
+  //     `🚫 [WEBHOOK] Skipping follow alert, inactive subscription for broadcaster: ${input_data.broadcaster.user_id}`
+  //   );
+  //   return;
+  // }
   const followerId = input_data.follower.user_id;
   const followerName = input_data.follower.username;
   const broadcasterId = input_data.broadcaster.user_id;
