@@ -77,18 +77,34 @@ function getWebSocketServer() {
   return wss;
 }
 
-const server = getWebSocketServer();
+// Only start server if this file is run directly
+let server: WebSocketServer | null = null;
+
+// Initialize server only when needed
+function initializeServer() {
+  if (!server) {
+    server = getWebSocketServer();
+  }
+  return server;
+}
+
+// Start server if this file is run directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  server = getWebSocketServer();
+  console.log("🚀 WebSocket server running as standalone process");
+}
 
 // Mevcut broadcast fonksiyonun - değişiklik yok
 // ws-server.ts - broadcastAlert fonksiyonunu debug'la
 export function broadcastAlert(alert: any) {
-  if (!server) {
+  const wsServer = server || initializeServer();
+  if (!wsServer) {
     return;
   }
   let sentCount = 0;
   let matchedClients = 0;
 
-  server.clients.forEach((client, index) => {
+  wsServer.clients.forEach((client, index) => {
     const c = client as unknown as BroadcasterWebSocket;
 
     if (String(c.broadcasterId) === alert.broadcasterId) {
@@ -111,9 +127,10 @@ export function broadcastAlert(alert: any) {
 
 // Server stats
 export function getServerStats() {
-  if (!server) return null;
+  const wsServer = server || initializeServer();
+  if (!wsServer) return null;
 
-  const connections = Array.from(server.clients).map((client) => {
+  const connections = Array.from(wsServer.clients).map((client) => {
     const c = client as any;
     return {
       broadcasterId: c.broadcasterId?.substring(0, 8) + "...",
@@ -123,10 +140,10 @@ export function getServerStats() {
   });
 
   return {
-    totalConnections: server.clients.size,
+    totalConnections: wsServer.clients.size,
     activeConnections: connections.filter((c) => c.readyState === 1).length,
     connections,
   };
 }
 
-export { server as webSocketServer };
+export { initializeServer as getWebSocketServer };
