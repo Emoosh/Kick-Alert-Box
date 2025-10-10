@@ -1,47 +1,43 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# .gitignore - PostgreSQL ve sensitive files
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# PostgreSQL data
+pgdata/
+pgdata2/
+postgres/
+*.wal
+pg_wal/
 
-# testing
-/coverage
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
 
-# next.js
-/.next/
-/out/
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# production
-/build
+# Redis
+redis-data/
+dump.rdb
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
 
-# vercel
-.vercel
+# Node modules
+node_modules/
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-/src/generated/prisma
-
-# PostgreSQL ve Redis veri dosyaları
-pgdata/
-redisdata/dump.rdb
+# Build outputs
+.next/
+dist/
+build/
