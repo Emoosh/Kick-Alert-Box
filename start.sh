@@ -7,6 +7,10 @@ echo "🚀 Starting Kick Alert Box services..."
 echo "📦 Generating Prisma client..."
 npx prisma generate
 
+# Run database migrations
+echo "🗄️ Running database migrations..."
+npx prisma migrate deploy || echo "⚠️ Migration failed, continuing..."
+
 echo "🎯 Starting Next.js server on port 3000..."
 node server.js &
 NEXTJS_PID=$!
@@ -34,9 +38,31 @@ cleanup() {
 # Trap signals
 trap cleanup SIGTERM SIGINT
 
-# Wait for any process to exit
-wait -n
+# Monitor processes with detailed logging
+monitor_processes() {
+    while true; do
+        # Check each process individually
+        if ! kill -0 $NEXTJS_PID 2>/dev/null; then
+            echo "❌ Next.js server (PID: $NEXTJS_PID) has stopped!"
+            return 1
+        fi
+        
+        if ! kill -0 $WS_PID 2>/dev/null; then
+            echo "❌ WebSocket server (PID: $WS_PID) has stopped!"
+            return 1
+        fi
+        
+        if ! kill -0 $WORKER_PID 2>/dev/null; then
+            echo "❌ Background worker (PID: $WORKER_PID) has stopped!"
+            return 1
+        fi
+        
+        echo "✅ All services running ($(date))"
+        sleep 5
+    done
+}
 
-# If any process exits, cleanup and exit
+# Start monitoring
+monitor_processes
 echo "⚠️ One or more services have stopped. Exiting..."
 cleanup
