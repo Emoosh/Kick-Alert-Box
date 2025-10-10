@@ -653,7 +653,7 @@ export default function Dashboard() {
                         isDark ? "text-gray-300" : "text-gray-600"
                       }`}
                     >
-                      You haven't subscribed to any events yet.
+                      You haven&apos;t subscribed to any events yet.
                     </p>
                     <button
                       onClick={() => setActiveTab("events")}
@@ -1276,9 +1276,9 @@ export default function Dashboard() {
                           <div className="flex items-start">
                             <span className="mr-3 font-bold">2️⃣</span>
                             <div>
-                              <strong>Subscribe to events:</strong> Go to "Event
-                              Subscriptions" tab and select which alerts you
-                              want
+                              <strong>Subscribe to events:</strong> Go to
+                              &quot;Event Subscriptions&quot; tab and select
+                              which alerts you want
                             </div>
                           </div>
                           <div className="flex items-start">
@@ -1351,7 +1351,7 @@ export default function Dashboard() {
                           }`}
                         >
                           Keep your WebSocket URL private! Anyone with this URL
-                          can receive your alerts. If you suspect it's been
+                          can receive your alerts. If you suspect it&apos;s been
                           compromised, contact support for a new URL.
                         </p>
                       </div>

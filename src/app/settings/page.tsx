@@ -69,7 +69,7 @@ export default function SettingsPage() {
   const updateAlertSetting = (
     alertType: "followAlert" | "subscribeAlert" | "tipAlert",
     key: string,
-    value: any
+    value: boolean | string | number
   ) => {
     if (!settings) return;
 
@@ -101,7 +101,7 @@ export default function SettingsPage() {
             href="/dashboard"
             className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
           >
-            Dashboard'a Dön
+            Dashboard&apos;a Dön
           </a>
         </div>
 

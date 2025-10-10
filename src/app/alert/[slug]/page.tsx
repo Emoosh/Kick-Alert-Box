@@ -21,7 +21,7 @@ export default function AlertPage({
   const [slug, setSlug] = useState<string>("");
   const [alertData, setAlertData] = useState<AlertData | null>(null);
   const [visible, setVisible] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  // const [isConnected, setIsConnected] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,7 +43,7 @@ export default function AlertPage({
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected successfully");
-      setIsConnected(true);
+      // setIsConnected(true);
     };
 
     ws.onmessage = (event) => {
@@ -116,12 +116,12 @@ export default function AlertPage({
       console.log(
         `🔌 WebSocket closed - Code: ${event.code}, Reason: ${event.reason}`
       );
-      setIsConnected(false);
+      // setIsConnected(false);
     };
 
     ws.onerror = (error) => {
       console.error("🚨 WebSocket error:", error);
-      setIsConnected(false);
+      // setIsConnected(false);
     };
 
     return () => {
@@ -141,7 +141,9 @@ export default function AlertPage({
     setTimeout(() => setAlertData(null), 500);
   };
 
-  const handleVideoError = (error: any) => {
+  const handleVideoError = (
+    error: React.SyntheticEvent<HTMLVideoElement, Event>
+  ) => {
     console.error("❌ Video error:", error);
     if (alertData) {
       const textAlert = { ...alertData, videoUrl: undefined };

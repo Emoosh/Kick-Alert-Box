@@ -6,9 +6,9 @@ import { encrypt, decrypt } from "@/lib/utils/crypto";
 
 import { getSubscription } from "@/lib/webhook/webhook-starters/get-subscriptions";
 import { deleteSubscription } from "@/lib/webhook/webhook-starters/delete-subscription";
-
+import type { Redis } from "ioredis";
 let prisma: PrismaClient;
-let redis: any;
+let redis: Redis;
 
 function getPrismaClient() {
   if (!prisma) {
@@ -43,6 +43,22 @@ export interface SessionPayload {
   type: "session";
 }
 
+interface KickSubscription {
+  id: string;
+  app_id: string;
+  event: string;
+  version: number;
+  broadcaster_user_id: number;
+  method: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SubscriptionsApiResponse {
+  data: KickSubscription[];
+  message: string;
+}
+
 export class TokenManager {
   private static getJWTSecret(): Uint8Array {
     const secret = process.env.JWT_SECRET;
@@ -50,7 +66,6 @@ export class TokenManager {
     return new TextEncoder().encode(secret);
   }
 
-  // ✅ Meaningful bilgilerle JWT session token oluştur
   private static async generateSessionToken(payload: {
     userId: string;
     kickUserId: string;
@@ -73,11 +88,10 @@ export class TokenManager {
       type: "session",
     };
 
-    console.log("Generating session token with payload:", sessionPayload);
     return await new SignJWT({ ...sessionPayload })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("2d") // 2 day validity
+      .setExpirationTime("2d")
       .sign(secret);
   }
 
@@ -103,7 +117,7 @@ export class TokenManager {
       const payload = await this.verifySessionToken(sessionToken);
       if (!payload) return null;
 
-      // 2- Get the access tokenprisma
+      // 2- Get the access token
       const accessToken = await this.getValidAccessToken(sessionToken);
       return {
         sessionPayload: {
@@ -155,6 +169,7 @@ export class TokenManager {
     const redis = getRedis();
     const prisma = getPrismaClient();
 
+    // I get the kick User ID because i need it when i create the session token.
     if (!kickUserId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -185,10 +200,6 @@ export class TokenManager {
       encryptedAccessToken
     );
 
-    console.log(`✅ Tokens cached for user ${userId}`);
-
-    console.log("Device Info:", deviceInfo);
-    console.log("IP Address:", ipAddress);
     // Database storage
     await prisma.accessToken.upsert({
       where: { userId },
@@ -244,13 +255,15 @@ export class TokenManager {
     const redis = getRedis();
     const prisma = getPrismaClient();
 
-    // Redis'den çek
+    // 1- Fastest option get the access token from REDIS.
     const encryptedToken = await redis.get(`access_token:${userId}`);
     if (encryptedToken) {
       return decrypt(encryptedToken);
     }
 
-    // DB'den çek
+    // 2- Second option get the access token from DATABASE.
+    // If somehow access token is not found in the redis but it is still valid in the database,
+    // We again store it back to redis for faster access next time.
     const accessTokenRecord = await prisma.accessToken.findUnique({
       where: { userId, expiresAt: { gt: new Date() } },
     });
@@ -264,7 +277,7 @@ export class TokenManager {
       return decrypt(accessTokenRecord.token);
     }
 
-    // Refresh token ile yenile
+    // If there is no other place to get the access token, we try to refresh it.
     return await this.refreshAccessToken(userId);
   }
 
@@ -283,7 +296,6 @@ export class TokenManager {
     const newTokens = await this.requestNewTokens(decryptedRefreshToken);
 
     if (newTokens) {
-      // Yeni token'ları sakla (eski session bilgileriyle)
       await this.storeTokens(
         userId,
         newTokens.accessToken,
@@ -391,15 +403,17 @@ export class TokenManager {
       const subscriptionsResponse = await getSubscription(accessToken);
 
       // Response'u parse et
-      const subscriptionsData = await subscriptionsResponse.json();
+      const subscriptionsData: SubscriptionsApiResponse =
+        await subscriptionsResponse.json();
 
       if (!subscriptionsData.data || subscriptionsData.data.length === 0) {
         console.log(`ℹ️ No subscriptions found for user ${kickUserId}`);
         return;
       }
 
-      const subscriptions = subscriptionsData.data;
-      const subscriptionIds = subscriptions.map((sub: any) => sub.id);
+      console.log("🔍 Subscriptions data:", subscriptionsData);
+      const subscriptions: KickSubscription[] = subscriptionsData.data;
+      const subscriptionIds: string[] = subscriptions.map((sub) => sub.id);
 
       console.log(
         `📋 Found ${subscriptions.length} subscriptions to delete for user ${kickUserId}`
@@ -491,9 +505,11 @@ export class TokenManager {
         const decryptedToken = decrypt(accessTokenRecord.token);
 
         // Redis'e cache'le
-        await redis.set(`access_token:${userId}`, accessTokenRecord.token, {
-          EX: 3600, // 1 saat
-        });
+        await redis.setex(
+          `access_token:${userId}`,
+          3600,
+          accessTokenRecord.token
+        ); // 1 saat
 
         return decryptedToken;
       }

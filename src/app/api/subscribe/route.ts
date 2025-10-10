@@ -9,7 +9,7 @@ import { deleteSubscription } from "@/lib/webhook/webhook-starters/delete-subscr
 export async function GET(request: NextRequest) {
   try {
     // Önce yeni auth sistemini dene
-    let accessToken = await getAccessTokenFromRequest(request);
+    const accessToken = await getAccessTokenFromRequest(request);
 
     if (!accessToken) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Access token al
-    let accessToken = await getAccessTokenFromRequest(request);
+    const accessToken = await getAccessTokenFromRequest(request);
 
     if (!accessToken) {
       return NextResponse.json(
@@ -92,7 +92,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Access token al
-    let accessToken = await getAccessTokenFromRequest(request);
+    const accessToken = await getAccessTokenFromRequest(request);
 
     if (!accessToken) {
       return NextResponse.json(

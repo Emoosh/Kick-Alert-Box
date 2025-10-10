@@ -1,5 +1,3 @@
-import { broadcastAlert } from "../../../../ws-server";
-
 import { getRedisClient } from "../../redis/redis";
 import { v4 as uuidv4 } from "uuid";
 
@@ -25,6 +23,60 @@ interface FollowAlert {
     channel_slug: string;
     identity: string | null;
   };
+}
+interface SubscriptionAlert {
+  broadcaster: {
+    is_anonymous: boolean;
+    user_id: number;
+    username: string;
+    is_verified: boolean;
+    profile_picture: string;
+    channel_slug: string;
+    identity: string | null;
+  };
+  subscriber: {
+    is_anonymous: boolean;
+    user_id: number;
+    username: string;
+    is_verified: boolean;
+    profile_picture: string;
+    channel_slug: string;
+    identity: string | null;
+  };
+  duration: number; // Subscription duration in months
+  created_at: string; // ISO 8601 date string
+  expires_at: string; // ISO 8601 date string
+}
+
+// QUEUE SYSTEM
+
+interface BaseQueueItem {
+  id: string;
+  timestamp: number;
+  processed?: boolean;
+  broadcasterId: string;
+}
+
+export interface AlertQueueItem {
+  id: string;
+  type: "follow" | "subscribe" | "subscriptionRenewal";
+  broadcasterId: string; // hashed broadcaster ID
+  timestamp: number;
+  processed?: boolean;
+
+  // Follow alerts için
+  username?: string;
+  userId?: number;
+  notHashedBroadcasterId?: number;
+
+  // Subscription alerts için
+  data?: SubscriptionAlert;
+  subscriberName?: string;
+  duration?: number;
+
+  // Video processing için (worker tarafından eklenir)
+  videoUrl?: string;
+  videoDuration?: number;
 }
 
 export async function checkBroadcasterSubscription(
@@ -69,12 +121,6 @@ export async function checkBroadcasterSubscription(
 
 // Handling the event types.
 export async function handleChannelFollow(input_data: FollowAlert) {
-  // if (!subStatus) {
-  //   console.log(
-  //     `🚫 [WEBHOOK] Skipping follow alert, inactive subscription for broadcaster: ${input_data.broadcaster.user_id}`
-  //   );
-  //   return;
-  // }
   const followerId = input_data.follower.user_id;
   const followerName = input_data.follower.username;
   const broadcasterId = input_data.broadcaster.user_id;
@@ -90,7 +136,7 @@ export async function handleChannelFollow(input_data: FollowAlert) {
   const redis = getRedisClient();
   const alertId = `alert_${uuidv4()}`;
 
-  const queueItem = {
+  const queueItem: AlertQueueItem = {
     id: alertId,
     type: "follow",
     username: followerName,
@@ -125,14 +171,29 @@ export async function handleChannelFollow(input_data: FollowAlert) {
   console.log(`🏁 [WEBHOOK] Follow handler completed`);
 }
 
-export async function handleNewSubscription(input_data: any) {
-  const subscriberName = input_data.subscriber.username;
+export async function handleNewSubscription(input_data: SubscriptionAlert) {
   const broadcasterId = input_data.broadcaster.user_id;
-  const hashedBroadcasterId = hashSlug(broadcasterId);
+  const subscriberName = input_data.subscriber.username;
 
+  console.log(
+    `🎯 [WEBHOOK] Processing subscription: ${subscriberName} → ${broadcasterId}`
+  );
+
+  // ✅ Subscription kontrolü ekle
+  const subStatus = await checkBroadcasterSubscription(broadcasterId);
+
+  // if (!subStatus) {
+  //   console.log(
+  //     `🚫 [WEBHOOK] Skipping subscription alert, inactive subscription for broadcaster: ${broadcasterId}`
+  //   );
+  //   return;
+  // }
+
+  const hashedBroadcasterId = hashSlug(broadcasterId);
   const redis = getRedisClient();
   const alertId = `alert_${uuidv4()}`;
-  const queueItem = {
+
+  const queueItem: AlertQueueItem = {
     id: alertId,
     type: "subscribe",
     data: input_data,
@@ -141,25 +202,55 @@ export async function handleNewSubscription(input_data: any) {
     processed: false,
     broadcasterId: hashedBroadcasterId,
   };
-  await redis.lpush(`alert_queue:${hashedBroadcasterId}`, alertId);
-  await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
-  await redis.lpush("alert_queue", alertId);
+
+  try {
+    await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
+    await redis.lpush(`alert_queue:${hashedBroadcasterId}`, alertId); // ✅ Correct queue
+    console.log(`✅ [WEBHOOK] Subscription alert queued: ${alertId}`);
+  } catch (error) {
+    console.error(`🚨 [WEBHOOK] Redis error:`, error);
+  }
 }
 
-//NOT COMPLETED
-export async function handleSubscriptionRenewal(input_data: any) {
+// ✅ handleSubscriptionRenewal - Tamamla
+export async function handleSubscriptionRenewal(input_data: SubscriptionAlert) {
+  const broadcasterId = input_data.broadcaster.user_id;
   const subscriberName = input_data.subscriber.username;
   const duration = input_data.duration;
 
+  console.log(
+    `🎯 [WEBHOOK] Processing renewal: ${subscriberName} → ${broadcasterId} (${duration} months)`
+  );
+
+  // ✅ Subscription kontrolü ekle
+  const subStatus = await checkBroadcasterSubscription(broadcasterId);
+
+  // if (!subStatus) {
+  //   console.log(
+  //     `🚫 [WEBHOOK] Skipping renewal alert, inactive subscription for broadcaster: ${broadcasterId}`
+  //   );
+  //   return;
+  // }
+
+  const hashedBroadcasterId = hashSlug(broadcasterId);
   const redis = getRedisClient();
   const alertId = `alert_${uuidv4()}`;
-  const queueItem = {
+
+  const queueItem: AlertQueueItem = {
     id: alertId,
     type: "subscriptionRenewal",
     data: input_data,
+    subscriberName: subscriberName,
     timestamp: Date.now(),
     processed: false,
+    broadcasterId: hashedBroadcasterId, // ✅ Eksikti
   };
-  await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
-  await redis.lpush("alert_queue", alertId);
+
+  try {
+    await redis.set(`alert:${alertId}`, JSON.stringify(queueItem));
+    await redis.lpush(`alert_queue:${hashedBroadcasterId}`, alertId); // ✅ Correct queue
+    console.log(`✅ [WEBHOOK] Renewal alert queued: ${alertId}`);
+  } catch (error) {
+    console.error(`🚨 [WEBHOOK] Redis error:`, error);
+  }
 }

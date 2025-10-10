@@ -85,8 +85,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("event type: ", eventType);
-
     switch (eventType) {
       case "chat.message.sent":
         console.log("Chat message event received");

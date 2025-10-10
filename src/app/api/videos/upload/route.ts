@@ -98,10 +98,10 @@ export async function POST(request: NextRequest) {
       video: result,
       message: "Video uploaded successfully!",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Upload API error:", error);
     return NextResponse.json(
-      { error: error.message || "Upload failed" },
+      { error: (error as Error).message || "Upload failed" },
       { status: 500 }
     );
   }

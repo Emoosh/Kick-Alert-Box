@@ -26,7 +26,7 @@ export async function uploadAlertVideo(
       `📤 Starting upload for user: ${kickUserId}, type: ${alertType}`
     );
 
-    let dbUser = await prisma.user.findFirst({
+    const dbUser = await prisma.user.findFirst({
       where: {
         kickUserId: kickUserId, // Düz Kick user ID ile ara
       },

@@ -39,12 +39,11 @@ export async function GET(request: NextRequest) {
         new URL("/login?error=invalid_state", request.url)
       );
     }
-
-    console.log("✅ Security checks passed, processing OAuth callback...");
-
     // OAuth token exchange
     const tokens = await handleCallback(url, code_verifier, state);
-
+    console.log("✅ OAuth token exchange successful");
+    // -------------------------------------------------
+    // oAuth Token Exchange Succeeded
     // In order to get Device info and ip address from the request:
 
     // Request Info might be changed after in the middleware for security purposes.
@@ -69,18 +68,19 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(
       new URL(`${redirectUrl}`, request.url)
     );
-    // Clear the OAuth cookies
-    response.cookies.set("code_verifier", "", { maxAge: 0, path: "/" });
-    response.cookies.set("state", "", { maxAge: 0, path: "/" });
 
     // Set the session Cookie.
     response.cookies.set("session_token", sessionToken ?? "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       path: "/",
       maxAge: 24 * 60 * 60,
       sameSite: "lax",
     });
+
+    // Clear the OAuth cookies
+    response.cookies.set("code_verifier", "", { maxAge: 0, path: "/" });
+    response.cookies.set("state", "", { maxAge: 0, path: "/" });
 
     console.log("✅ Redirecting to dashboard with session token");
     return response;

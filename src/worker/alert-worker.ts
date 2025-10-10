@@ -1,32 +1,43 @@
 // src/worker/alert-worker.ts - broadcastAlert fonksiyonunu güncelle
-import { createRedisConnection, getRedisClient } from "../lib/redis/redis.ts";
-import { broadcastAlert } from "../../ws-server.ts";
-import { getRandomAlertVideo } from "../lib/services/video-service.ts";
+import { createRedisConnection, getRedisClient } from "../lib/redis/redis";
+import { broadcastAlert } from "../../ws-server";
+import { getRandomAlertVideo } from "../lib/services/video-service";
 import { PrismaClient } from "@prisma/client"; // ✅ Prisma client ekle
+import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHandlers"; // ✅ Yeni type import et
 
 const prisma = new PrismaClient(); // ✅ Prisma instance
 const activeWorkers = new Map<string, boolean>();
 
 // Alert'i işlerken video ekle
-async function processAlertWithVideo(alert: any) {
+async function processAlertWithVideo(alert: AlertQueueItem) {
   try {
     console.log(`🎬 Processing alert for broadcaster: ${alert.broadcasterId}`);
 
     // 1. Broadcaster ID'sinden database user'ını bul
-    const dbUser = await prisma.user.findFirst({
-      where: {
-        kickUserId: alert.notHashedBroadcasterId.toString(), // ✅ broadcasterId aslında Kick user ID
-      },
-    });
+    let dbUser = null;
+    if (
+      alert.notHashedBroadcasterId !== undefined &&
+      alert.notHashedBroadcasterId !== null
+    ) {
+      dbUser = await prisma.user.findFirst({
+        where: {
+          kickUserId: alert.notHashedBroadcasterId.toString(), // ✅ broadcasterId aslında Kick user ID
+        },
+      });
+    }
 
     if (dbUser) {
       console.log(`👤 Found user in database: ${dbUser.id}`);
 
       // 2. Alert tipine göre video seç
       let alertType = "follow"; // Default
-      if (alert.type === "channel.followed") alertType = "follow";
-      else if (alert.type === "channel.subscribed") alertType = "subscribe";
-      else if (alert.type === "channel.tipped") alertType = "tip";
+      if (alert.type === "follow") alertType = "follow";
+      else if (
+        alert.type === "subscribe" ||
+        alert.type === "subscriptionRenewal"
+      )
+        alertType = "subscribe";
+      else if (alert.type === "tip") alertType = "tip";
 
       // 3. Random video seç
       const selectedVideo = await getRandomAlertVideo(dbUser.id, alertType);
@@ -130,7 +141,6 @@ async function startBroadcasterWorker(broadcasterId: string) {
           alert
         );
 
-        // ✅ YENİ: Video ile alert işle
         await processAlertWithVideo(alert);
 
         await redis.del(`alert:${alertId}`);

@@ -36,8 +36,6 @@ interface userData {
   message: string;
 }
 
-interface UserData {}
-
 export class UserCallbackService {
   static async handleOAuthCallback(
     callbackData: CallBackData,
