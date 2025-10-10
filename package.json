@@ -4,10 +4,16 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint",
+    "worker": "tsx src/worker/alert-worker.ts",
+    "ws": "tsx ws-server.ts",
+    "docker:build": "docker build -t kick-alert-box .",
+    "docker:run": "docker run -p 3000:3000 -p 4001:4001 --env-file .env.local kick-alert-box",
+    "docker:dev": "docker run -it --rm -p 3000:3000 -p 4001:4001 --env-file .env.local kick-alert-box",
+    "railway:deploy": "railway up"
   },
   "dependencies": {
     "@prisma/client": "^6.17.0",
