@@ -37,16 +37,16 @@ export default function AlertPage({
 
     console.log(`🔗 Connecting to WebSocket for broadcaster: ${slug}`);
 
-    // Dynamic WebSocket URL for production/development
+    // Dynamic WebSocket URL for production/development  
     let wsUrl;
     
     if (window.location.hostname === "localhost") {
-      // Local development - WebSocket on same port as HTTP (3000)
-      wsUrl = `ws://localhost:3000?broadcasterId=${encodeURIComponent(slug)}`;
+      // Local development - WebSocket on port 4001
+      wsUrl = `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`;
     } else {
-      // Production (Railway) - WebSocket on same port as HTTP
-      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      wsUrl = `${wsProtocol}//${window.location.host}?broadcasterId=${encodeURIComponent(slug)}`;
+      // Production (Railway) - WebSocket internal connection
+      // Railway internal services can communicate via service names
+      wsUrl = `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`;
     }
     
     console.log(`🔗 WebSocket URL: ${wsUrl}`);
