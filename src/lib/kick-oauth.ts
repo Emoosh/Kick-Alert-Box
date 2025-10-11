@@ -4,8 +4,8 @@ import * as crypto from "crypto";
 const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || "";
 const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || "";
 const KICK_REDIRECT_URI =
-  process.env.KICK_REDIRECT_URI || 
-  (process.env.NODE_ENV === 'production' 
+  process.env.KICK_REDIRECT_URI ||
+  (process.env.NODE_ENV === "production"
     ? `${process.env.NEXTAUTH_URL}/api/auth/callback`
     : "http://localhost:3000/api/auth/callback");
 

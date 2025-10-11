@@ -38,11 +38,12 @@ export default function AlertPage({
     console.log(`🔗 Connecting to WebSocket for broadcaster: ${slug}`);
 
     // Dynamic WebSocket URL for production/development
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.hostname === 'localhost' 
-      ? 'localhost:4001' 
-      : `${window.location.hostname}:4001`;
-    
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost =
+      window.location.hostname === "localhost"
+        ? "localhost:4001"
+        : `${window.location.hostname}:4001`;
+
     const ws = new WebSocket(
       `${wsProtocol}//${wsHost}?broadcasterId=${encodeURIComponent(slug)}`
     );

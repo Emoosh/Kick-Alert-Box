@@ -3,11 +3,15 @@ import { hashSlug } from "../hash/hash";
 
 // WebSocket bağlantısı için URL (ws-server için)
 export function getWebSocketUrl(hashedUserId: string): string {
-  const wsProtocol = process.env.NODE_ENV === 'production' ? 'wss:' : 'ws:';
-  const wsHost = process.env.NODE_ENV === 'production' 
-    ? `${process.env.NEXTAUTH_URL?.replace('https://', '').replace('http://', '')}:4001`
-    : 'localhost:4001';
-  
+  const wsProtocol = process.env.NODE_ENV === "production" ? "wss:" : "ws:";
+  const wsHost =
+    process.env.NODE_ENV === "production"
+      ? `${process.env.NEXTAUTH_URL?.replace("https://", "").replace(
+          "http://",
+          ""
+        )}:4001`
+      : "localhost:4001";
+
   return `${wsProtocol}//${wsHost}?broadcasterId=${hashedUserId}`;
 }
 

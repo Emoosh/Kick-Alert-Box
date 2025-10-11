@@ -97,8 +97,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 // Mevcut broadcast fonksiyonun - değişiklik yok
 // ws-server.ts - broadcastAlert fonksiyonunu debug'la
 export function broadcastAlert(alert: any) {
-  const wsServer = server || initializeServer();
+  const wsServer = server; // Only use existing server, don't create new one
   if (!wsServer) {
+    console.log("⚠️ WebSocket server not initialized, skipping broadcast");
     return;
   }
   let sentCount = 0;

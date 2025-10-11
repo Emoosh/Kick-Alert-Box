@@ -1,8 +1,7 @@
 // lib/video/video-service.ts
 import { PrismaClient } from "@prisma/client";
-import { writeFile, mkdir, unlink, stat } from "fs/promises";
-import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
+import { uploadVideoToCloudinary, deleteVideoFromCloudinary } from "@/lib/cloudinary";
 
 const prisma = new PrismaClient();
 
@@ -28,18 +27,16 @@ export async function uploadAlertVideo(
 
     const dbUser = await prisma.user.findFirst({
       where: {
-        kickUserId: kickUserId, // Düz Kick user ID ile ara
+        kickUserId: kickUserId,
       },
     });
 
     if (!dbUser) {
       console.log(`❌ User not found in database with Kick ID: ${kickUserId}`);
-      // Debug: Database'deki user'ları listele
       const allUsers = await prisma.user.findMany({
         select: { id: true, kickUserId: true },
       });
       console.log("📊 Users in database:", allUsers);
-
       throw new Error(`User not found in database. Kick ID: ${kickUserId}`);
     }
 
@@ -48,6 +45,7 @@ export async function uploadAlertVideo(
     );
 
     const userId = dbUser.id;
+    
     // 1. Validations
     const existingCount = await prisma.alertVideo.count({
       where: { userId, alertType, isActive: true },
@@ -74,46 +72,39 @@ export async function uploadAlertVideo(
       );
     }
 
-    // 2. Prepare file paths
+    // 2. Prepare for Cloudinary upload
     const videoId = uuidv4();
     const fileExtension = file.name.split(".").pop() || "mp4";
-    const fileName = `${videoId}_${alertType}.${fileExtension}`;
-    const userDir = join(
-      process.cwd(),
-      "public",
-      "uploads",
-      "videos",
+    const fileName = `${videoId}_${alertType}`;
+
+    console.log(`☁️ Preparing Cloudinary upload: ${fileName}`);
+
+    // 3. Convert file to buffer for Cloudinary
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // 4. Upload to Cloudinary
+    const cloudinaryResult = await uploadVideoToCloudinary(
+      buffer,
+      fileName,
       userId,
       alertType
     );
-    const filePath = join(userDir, fileName);
-    const publicUrl = `/uploads/videos/${userId}/${alertType}/${fileName}`;
 
-    console.log(`📁 Preparing upload: ${publicUrl}`);
+    console.log(`✅ Cloudinary upload completed: ${cloudinaryResult.secure_url}`);
 
-    // 3. Create directory and save file
-    await mkdir(userDir, { recursive: true });
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    console.log(`✅ File saved: ${filePath}`);
-
-    // 4. Verify file exists and get actual size
-    const fileStats = await stat(filePath);
-    const actualSize = fileStats.size;
-
-    // 5. Save to database
+    // 5. Save to database with Cloudinary URL
     const alertVideo = await prisma.alertVideo.create({
       data: {
         userId,
         alertType,
-        videoUrl: publicUrl,
+        videoUrl: cloudinaryResult.secure_url,
         videoName: file.name,
-        fileSize: actualSize,
+        fileSize: cloudinaryResult.bytes,
+        duration: cloudinaryResult.duration,
         mimeType: file.type,
         sortOrder: existingCount,
+        cloudinaryPublicId: cloudinaryResult.public_id,
       },
     });
 
@@ -213,6 +204,11 @@ export async function deleteAlertVideo(
     // Get video info before deletion
     const video = await prisma.alertVideo.findFirst({
       where: { id: videoId, userId },
+      select: {
+        id: true,
+        videoUrl: true,
+        cloudinaryPublicId: true,
+      },
     });
 
     if (!video) {
@@ -225,13 +221,16 @@ export async function deleteAlertVideo(
       data: { isActive: false },
     });
 
-    // Try to delete physical file (optional, for cleanup)
+    // Try to delete from Cloudinary (optional, for cleanup)
     try {
-      const filePath = join(process.cwd(), "public", video.videoUrl);
-      await unlink(filePath);
-      console.log(`🗑️ Physical file deleted: ${filePath}`);
-    } catch (fileError) {
-      console.warn("⚠️ Could not delete physical file:", fileError);
+      if (video.cloudinaryPublicId) {
+        await deleteVideoFromCloudinary(video.cloudinaryPublicId);
+        console.log(`🗑️ Cloudinary file deleted: ${video.cloudinaryPublicId}`);
+      } else {
+        console.log(`⚠️ No Cloudinary public ID found for video: ${videoId}`);
+      }
+    } catch (cloudinaryError) {
+      console.warn("⚠️ Could not delete from Cloudinary:", cloudinaryError);
       // Continue anyway, database record is marked as deleted
     }
 
