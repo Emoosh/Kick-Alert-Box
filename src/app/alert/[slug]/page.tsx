@@ -41,17 +41,29 @@ export default function AlertPage({
     let wsUrl;
     
     if (window.location.hostname === "localhost") {
-      // Local development - WebSocket on same port as HTTP
-      wsUrl = `ws://localhost:3000?broadcasterId=${encodeURIComponent(slug)}`;
+      // Local development - WebSocket on port 4001
+      wsUrl = `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`;
     } else {
-      // Production (Railway) - WebSocket on same port as HTTP
+      // Production (Railway) - Try multiple strategies
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      wsUrl = `${wsProtocol}//${window.location.host}?broadcasterId=${encodeURIComponent(slug)}`;
+      const hostname = window.location.hostname;
+      
+      // Strategy 1: Try replacing domain with Railway's WebSocket domain pattern
+      if (hostname.includes("railway.app")) {
+        // Railway might expose WebSocket on a different subdomain or same domain
+        wsUrl = `${wsProtocol}//${hostname.replace("kickalertbox-production", "kickalertbox-production-ws")}?broadcasterId=${encodeURIComponent(slug)}`;
+      } else {
+        // Fallback: same domain different port
+        wsUrl = `${wsProtocol}//${hostname}:4001?broadcasterId=${encodeURIComponent(slug)}`;
+      }
     }
     
     console.log(`🔗 WebSocket URL: ${wsUrl}`);
 
     const ws = new WebSocket(wsUrl);
+    
+    // Fallback strategy if primary WebSocket fails
+    let fallbackAttempted = false;
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected successfully");
@@ -136,6 +148,29 @@ export default function AlertPage({
     ws.onerror = (error) => {
       console.error("❌ WebSocket error:", error);
       console.error(`❌ Error for broadcasterId: ${slug}`);
+      
+      // Try fallback WebSocket URL if not localhost and not already attempted
+      if (window.location.hostname !== "localhost" && !fallbackAttempted) {
+        fallbackAttempted = true;
+        console.log("🔄 Trying fallback WebSocket connection...");
+        
+        // Fallback: Try same domain, same port as HTTP
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const fallbackUrl = `${wsProtocol}//${window.location.host}?broadcasterId=${encodeURIComponent(slug)}`;
+        
+        console.log(`🔗 Fallback WebSocket URL: ${fallbackUrl}`);
+        
+        setTimeout(() => {
+          const fallbackWs = new WebSocket(fallbackUrl);
+          // Copy event handlers to fallback connection
+          fallbackWs.onopen = ws.onopen;
+          fallbackWs.onmessage = ws.onmessage;
+          fallbackWs.onclose = ws.onclose;
+          fallbackWs.onerror = (err) => {
+            console.error("❌ Fallback WebSocket also failed:", err);
+          };
+        }, 1000);
+      }
     };
 
     ws.onerror = (error) => {
