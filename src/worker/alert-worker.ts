@@ -6,7 +6,7 @@ import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHand
 
 // Global broadcastAlert function from server-with-ws.js
 declare global {
-  var broadcastAlert: ((alert: any) => void) | undefined;
+  var broadcastAlert: ((alert: AlertQueueItem) => void) | undefined;
 }
 
 const prisma = new PrismaClient(); // ✅ Prisma instance
