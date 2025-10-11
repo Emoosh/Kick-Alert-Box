@@ -38,18 +38,24 @@ export default function AlertPage({
     console.log(`🔗 Connecting to WebSocket for broadcaster: ${slug}`);
 
     // Dynamic WebSocket URL for production/development
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost =
-      window.location.hostname === "localhost"
-        ? "localhost:4001"
-        : `${window.location.hostname}:4001`;
+    let wsUrl;
+    
+    if (window.location.hostname === "localhost") {
+      // Local development - WebSocket on same port as HTTP (3000)
+      wsUrl = `ws://localhost:3000?broadcasterId=${encodeURIComponent(slug)}`;
+    } else {
+      // Production (Railway) - WebSocket on same port as HTTP
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${wsProtocol}//${window.location.host}?broadcasterId=${encodeURIComponent(slug)}`;
+    }
+    
+    console.log(`🔗 WebSocket URL: ${wsUrl}`);
 
-    const ws = new WebSocket(
-      `${wsProtocol}//${wsHost}?broadcasterId=${encodeURIComponent(slug)}`
-    );
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected successfully");
+      console.log(`🔗 Connected with broadcasterId: ${slug}`);
       // setIsConnected(true);
     };
 
@@ -123,7 +129,13 @@ export default function AlertPage({
       console.log(
         `🔌 WebSocket closed - Code: ${event.code}, Reason: ${event.reason}`
       );
+      console.log(`🔌 Closed for broadcasterId: ${slug}`);
       // setIsConnected(false);
+    };
+
+    ws.onerror = (error) => {
+      console.error("❌ WebSocket error:", error);
+      console.error(`❌ Error for broadcasterId: ${slug}`);
     };
 
     ws.onerror = (error) => {

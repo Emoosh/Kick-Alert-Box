@@ -5,10 +5,7 @@ import { useSession } from "@/hooks/useSession";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
-import {
-  getWebSocketUrl,
-  generateHashedUserId,
-} from "@/lib/utils/websocket"; // ✅ DOĞRU IMPORT
+import { getWebSocketUrl, generateHashedUserId } from "@/lib/utils/websocket"; // ✅ DOĞRU IMPORT
 import { VideoUpload } from "@/app/components/VideoUpload";
 
 // Event types tanımla
@@ -78,7 +75,9 @@ export default function Dashboard() {
 
   // WebSocket URL oluştur - kullanıcının kendi URL'i (client-side)
   const alertPageURL = session?.user?.data?.[0]?.user_id
-    ? `${window.location.origin}/alert/${generateHashedUserId(session.user.data[0].user_id)}`
+    ? `${window.location.origin}/alert/${generateHashedUserId(
+        session.user.data[0].user_id
+      )}`
     : null;
 
   const hashedUserId = session?.user?.data?.[0]?.user_id

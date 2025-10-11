@@ -1,7 +1,10 @@
 // lib/video/video-service.ts
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
-import { uploadVideoToCloudinary, deleteVideoFromCloudinary } from "../cloudinary";
+import {
+  uploadVideoToCloudinary,
+  deleteVideoFromCloudinary,
+} from "../cloudinary";
 
 const prisma = new PrismaClient();
 
@@ -45,7 +48,7 @@ export async function uploadAlertVideo(
     );
 
     const userId = dbUser.id;
-    
+
     // 1. Validations
     const existingCount = await prisma.alertVideo.count({
       where: { userId, alertType, isActive: true },
@@ -91,7 +94,9 @@ export async function uploadAlertVideo(
       alertType
     );
 
-    console.log(`✅ Cloudinary upload completed: ${cloudinaryResult.secure_url}`);
+    console.log(
+      `✅ Cloudinary upload completed: ${cloudinaryResult.secure_url}`
+    );
 
     // 5. Save to database with Cloudinary URL
     const alertVideo = await prisma.alertVideo.create({

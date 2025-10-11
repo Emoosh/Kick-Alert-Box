@@ -3,41 +3,14 @@ import { createRedisConnection, getRedisClient } from "../lib/redis/redis";
 import { getRandomAlertVideo } from "../lib/services/video-service";
 import { PrismaClient } from "@prisma/client"; // ✅ Prisma client ekle
 import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHandlers"; // ✅ Yeni type import et
-import WebSocket from "ws";
+
+// Global broadcastAlert function from server-with-ws.js
+declare global {
+  var broadcastAlert: ((alert: any) => void) | undefined;
+}
 
 const prisma = new PrismaClient(); // ✅ Prisma instance
 const activeWorkers = new Map<string, boolean>();
-
-// WebSocket broadcast fonksiyonu
-async function broadcastAlertToWebSocket(alert: AlertQueueItem) {
-  try {
-    const wsUrl = process.env.NODE_ENV === 'production' 
-      ? `ws://localhost:4001` 
-      : `ws://localhost:4001`;
-    
-    const ws = new WebSocket(wsUrl);
-    
-    ws.on('open', () => {
-      console.log(`📡 Broadcasting alert to WebSocket: ${alert.type} - ${alert.username}`);
-      
-      const message = {
-        type: 'alert',
-        broadcasterId: alert.broadcasterId,
-        data: alert
-      };
-      
-      ws.send(JSON.stringify(message));
-      ws.close();
-    });
-
-    ws.on('error', (error) => {
-      console.error('❌ WebSocket broadcast error:', error);
-    });
-
-  } catch (error) {
-    console.error('❌ Error broadcasting to WebSocket:', error);
-  }
-}
 
 // Alert'i işlerken video ekle
 async function processAlertWithVideo(alert: AlertQueueItem) {
@@ -93,11 +66,17 @@ async function processAlertWithVideo(alert: AlertQueueItem) {
     }
 
     // 4. Alert'i broadcast et (video varsa video ile, yoksa normal)
-    await broadcastAlertToWebSocket(alert);
+    if (global.broadcastAlert) {
+      global.broadcastAlert(alert);
+    } else {
+      console.log('⚠️ Global broadcastAlert not available');
+    }
   } catch (error) {
     console.error("❌ Error processing alert with video:", error);
     // Hata olursa bile alert'i gönder
-    await broadcastAlertToWebSocket(alert);
+    if (global.broadcastAlert) {
+      global.broadcastAlert(alert);
+    }
   }
 }
 

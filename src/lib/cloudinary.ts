@@ -31,37 +31,40 @@ export async function uploadVideoToCloudinary(
   try {
     console.log(`☁️ Uploading to Cloudinary: ${fileName}`);
 
-    const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          resource_type: "video",
-          public_id: `kick-alerts/${userId}/${alertType}/${fileName}`,
-          overwrite: true,
-          invalidate: true,
-          transformation: [
-            { quality: "auto" },
-            { format: "mp4" }
-          ]
-        },
-        (error, result) => {
-          if (error) {
-            console.error("❌ Cloudinary upload error:", error);
-            reject(error);
-          } else if (result) {
-            console.log(`✅ Cloudinary upload success: ${result.secure_url}`);
-            resolve({
-              public_id: result.public_id,
-              secure_url: result.secure_url,
-              bytes: result.bytes,
-              duration: result.duration,
-              format: result.format,
-            });
-          } else {
-            reject(new Error("Unknown Cloudinary error"));
-          }
-        }
-      ).end(buffer);
-    });
+    const result = await new Promise<CloudinaryUploadResult>(
+      (resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            {
+              resource_type: "video",
+              public_id: `kick-alerts/${userId}/${alertType}/${fileName}`,
+              overwrite: true,
+              invalidate: true,
+              transformation: [{ quality: "auto" }, { format: "mp4" }],
+            },
+            (error, result) => {
+              if (error) {
+                console.error("❌ Cloudinary upload error:", error);
+                reject(error);
+              } else if (result) {
+                console.log(
+                  `✅ Cloudinary upload success: ${result.secure_url}`
+                );
+                resolve({
+                  public_id: result.public_id,
+                  secure_url: result.secure_url,
+                  bytes: result.bytes,
+                  duration: result.duration,
+                  format: result.format,
+                });
+              } else {
+                reject(new Error("Unknown Cloudinary error"));
+              }
+            }
+          )
+          .end(buffer);
+      }
+    );
 
     return result;
   } catch (error) {
@@ -70,10 +73,12 @@ export async function uploadVideoToCloudinary(
   }
 }
 
-export async function deleteVideoFromCloudinary(publicId: string): Promise<void> {
+export async function deleteVideoFromCloudinary(
+  publicId: string
+): Promise<void> {
   try {
     console.log(`🗑️ Deleting from Cloudinary: ${publicId}`);
-    
+
     const result = await cloudinary.uploader.destroy(publicId, {
       resource_type: "video",
       invalidate: true,
