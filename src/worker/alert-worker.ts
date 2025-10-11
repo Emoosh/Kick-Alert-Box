@@ -1,9 +1,13 @@
 // src/worker/alert-worker.ts - broadcastAlert fonksiyonunu güncelle
 import { createRedisConnection, getRedisClient } from "../lib/redis/redis";
-import { broadcastAlert } from "../../ws-server";
 import { getRandomAlertVideo } from "../lib/services/video-service";
 import { PrismaClient } from "@prisma/client"; // ✅ Prisma client ekle
 import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHandlers"; // ✅ Yeni type import et
+
+// Global broadcastAlert function from server-with-ws.js
+declare global {
+  var broadcastAlert: ((alert: AlertQueueItem) => void) | undefined;
+}
 
 const prisma = new PrismaClient(); // ✅ Prisma instance
 const activeWorkers = new Map<string, boolean>();
@@ -62,11 +66,19 @@ async function processAlertWithVideo(alert: AlertQueueItem) {
     }
 
     // 4. Alert'i broadcast et (video varsa video ile, yoksa normal)
-    broadcastAlert(alert);
+    if (global.broadcastAlert) {
+      global.broadcastAlert(alert);
+    } else {
+      console.log('⚠️ Global broadcastAlert not available');
+    }
   } catch (error) {
     console.error("❌ Error processing alert with video:", error);
     // Hata olursa bile alert'i gönder
-    broadcastAlert(alert);
+    if (global.broadcastAlert) {
+      global.broadcastAlert(alert);
+    } else {
+      console.log('⚠️ Global broadcastAlert not available for error handling');
+    }
   }
 }
 

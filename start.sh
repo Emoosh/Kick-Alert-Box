@@ -11,21 +11,16 @@ npx prisma generate
 echo "🗄️ Running database migrations..."
 npx prisma migrate deploy || echo "⚠️ Migration failed, continuing..."
 
-echo "🎯 Starting Next.js server on port 3000..."
-node server.js &
+echo "🎯 Starting Next.js server with WebSocket on port 3000..."
+node server-with-ws.js &
 NEXTJS_PID=$!
-
-echo "🔌 Starting WebSocket server on port 4001..."
-/usr/local/bin/tsx ws-server.ts &
-WS_PID=$!
 
 echo "⚡ Starting background worker..."
 /usr/local/bin/tsx src/worker/alert-worker.ts &
 WORKER_PID=$!
 
 echo "✅ All services started successfully!"
-echo "Next.js PID: $NEXTJS_PID"
-echo "WebSocket PID: $WS_PID"
+echo "Next.js+WebSocket PID: $NEXTJS_PID"
 echo "Worker PID: $WORKER_PID"
 
 # Function to handle shutdown
