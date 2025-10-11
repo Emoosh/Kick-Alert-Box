@@ -37,8 +37,14 @@ export default function AlertPage({
 
     console.log(`🔗 Connecting to WebSocket for broadcaster: ${slug}`);
 
+    // Dynamic WebSocket URL for production/development
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.hostname === 'localhost' 
+      ? 'localhost:4001' 
+      : `${window.location.hostname}:4001`;
+    
     const ws = new WebSocket(
-      `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`
+      `${wsProtocol}//${wsHost}?broadcasterId=${encodeURIComponent(slug)}`
     );
 
     ws.onopen = () => {
@@ -76,7 +82,7 @@ export default function AlertPage({
           // Video URL'ini tam path yap
           const fullVideoUrl = data.videoUrl.startsWith("http")
             ? data.videoUrl
-            : `http://localhost:3000${data.videoUrl}`;
+            : `${window.location.origin}${data.videoUrl}`;
 
           console.log("🔗 Full video URL:", fullVideoUrl);
 

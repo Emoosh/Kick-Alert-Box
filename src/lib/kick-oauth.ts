@@ -4,7 +4,10 @@ import * as crypto from "crypto";
 const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || "";
 const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || "";
 const KICK_REDIRECT_URI =
-  process.env.KICK_REDIRECT_URI || "http://localhost:3000/api/auth/callback";
+  process.env.KICK_REDIRECT_URI || 
+  (process.env.NODE_ENV === 'production' 
+    ? `${process.env.NEXTAUTH_URL}/api/auth/callback`
+    : "http://localhost:3000/api/auth/callback");
 
 const KICK_BASE_URL = "https://id.kick.com";
 const KICK_AUTH_URL = `${KICK_BASE_URL}/oauth/authorize`;
@@ -144,8 +147,8 @@ export async function handleCallback(
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
         "User-Agent": "KickAlertBoxApp/1.0",
-        Origin: "http://localhost:3000",
-        Referer: "http://localhost:3000/",
+        Origin: process.env.NEXTAUTH_URL || "http://localhost:3000",
+        Referer: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/`,
       },
       body: tokenRequestBody,
     });
