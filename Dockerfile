@@ -44,6 +44,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/ws-server.ts ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/next.config.ts ./
 
 # Copy and set permissions for startup script
 COPY start.sh ./
