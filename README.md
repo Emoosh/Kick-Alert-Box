@@ -1,6 +1,6 @@
 # Kick Alert Box
 
-This project implements OAuth authentication with Kick.com using the openid-client library. Users can login with their Kick account and grant access to your application.
+Kick.com için gerçek zamanlı alert sistemi. OAuth authentication, WebSocket bağlantısı ve background worker ile tam entegre Kick alert box uygulaması.
 
 ## Setup
 

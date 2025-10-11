@@ -1,0 +1,31 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[deploy.healthcheck]
+httpPath = "/api/health"
+initialDelaySeconds = 60
+periodSeconds = 10
+timeoutSeconds = 5
+failureThreshold = 3
+
+[deploy.resources]
+memoryLimit = "1Gi"
+cpuLimit = "1000m"
+
+[[deploy.environmentVariables]]
+name = "NODE_ENV"
+value = "production"
+
+[[deploy.environmentVariables]]
+name = "PORT"
+value = "3000"
+
+[[deploy.environmentVariables]]
+name = "WEBSOCKET_PORT"
+value = "4001"
