@@ -80,14 +80,14 @@ export class UserCallbackService {
         success: true,
         user,
         sessionToken,
-        redirectUrl: "/dashboard",
+        redirectUrl: process.env.NEXTAUTH_URL + "/dashboard",
       };
     } catch (error) {
       console.error("Error handling OAuth callback:", error);
       return {
         success: false,
         error: (error as Error).message,
-        redirectUrl: "/login?error=callback_failed",
+        redirectUrl: process.env.NEXTAUTH_URL + "/login?error=callback_failed",
       };
     }
   }
