@@ -1,12 +1,18 @@
 // src/lib/cloudinary.ts
 import { v2 as cloudinary } from "cloudinary";
 
-// Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// Cloudinary config - supports both CLOUDINARY_URL and separate variables
+if (process.env.CLOUDINARY_URL) {
+  // Use CLOUDINARY_URL (recommended)
+  cloudinary.config(process.env.CLOUDINARY_URL);
+} else {
+  // Use separate environment variables
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 export interface CloudinaryUploadResult {
   public_id: string;
