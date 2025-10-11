@@ -1,7 +1,7 @@
 // lib/video/video-service.ts
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
-import { uploadVideoToCloudinary, deleteVideoFromCloudinary } from "../cloudinary.js";
+import { uploadVideoToCloudinary, deleteVideoFromCloudinary } from "../cloudinary";
 
 const prisma = new PrismaClient();
 
