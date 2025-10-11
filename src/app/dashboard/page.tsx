@@ -7,7 +7,6 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
 import {
   getWebSocketUrl,
-  generateAlertPageURL,
   generateHashedUserId,
 } from "@/lib/utils/websocket"; // ✅ DOĞRU IMPORT
 import { VideoUpload } from "@/app/components/VideoUpload";
@@ -77,9 +76,9 @@ export default function Dashboard() {
   >("overview");
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // WebSocket URL oluştur - kullanıcının kendi URL'i
+  // WebSocket URL oluştur - kullanıcının kendi URL'i (client-side)
   const alertPageURL = session?.user?.data?.[0]?.user_id
-    ? generateAlertPageURL(session.user.data[0].user_id)
+    ? `${window.location.origin}/alert/${generateHashedUserId(session.user.data[0].user_id)}`
     : null;
 
   const hashedUserId = session?.user?.data?.[0]?.user_id
