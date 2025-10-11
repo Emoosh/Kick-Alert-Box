@@ -6,7 +6,7 @@ import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
 import {
-  generateWebSocketURL,
+  getWebSocketUrl,
   generateAlertPageURL,
   generateHashedUserId,
 } from "@/lib/utils/websocket"; // ✅ DOĞRU IMPORT
