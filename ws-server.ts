@@ -1,7 +1,9 @@
 // ws-server.ts - Mevcut sisteminize uygun
 import { WebSocketServer } from "ws";
+import { createServer } from "http";
 
 let wss: WebSocketServer | null = null;
+let httpServer: ReturnType<typeof createServer> | null = null;
 
 interface BroadcasterWebSocket extends WebSocket {
   broadcasterId?: string;
@@ -11,7 +13,30 @@ interface BroadcasterWebSocket extends WebSocket {
 function getWebSocketServer() {
   if (!wss) {
     const port = parseInt(process.env.PORT || "4001");
-    wss = new WebSocketServer({ port });
+    
+    // Create HTTP server for Railway compatibility
+    httpServer = createServer((req, res) => {
+      // Health check endpoint
+      if (req.url === '/health' || req.url === '/') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          status: 'ok', 
+          service: 'websocket',
+          connections: wss?.clients.size || 0 
+        }));
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    // Attach WebSocket server to HTTP server
+    wss = new WebSocketServer({ server: httpServer });
+
+    // Start HTTP server
+    httpServer.listen(port, () => {
+      console.log(`🚀 WebSocket server started on port ${port}`);
+    });
 
     wss.on("connection", (ws, req) => {
       const params = new URLSearchParams(req.url?.split("?")[1]);
@@ -71,9 +96,8 @@ function getWebSocketServer() {
 
     wss.on("close", () => {
       clearInterval(heartbeatInterval);
+      httpServer?.close();
     });
-
-    console.log(`🚀 WebSocket server started on port ${port}`);
   }
   return wss;
 }
