@@ -44,11 +44,11 @@ export default function AlertPage({
       // Local development - WebSocket on port 4001
       wsUrl = `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`;
     } else {
-      // Production (Railway) - Hardcoded for now until env var works
-      const wsHost = "websocket-production-a8e7.up.railway.app";
+      // Production (Railway) - Use environment variable for WebSocket service URL
+      const wsHost =
+        process.env.NEXT_PUBLIC_WS_URL ||
+        "kick-alert-box-websocket.up.railway.app";
       wsUrl = `wss://${wsHost}?broadcasterId=${encodeURIComponent(slug)}`;
-      
-      console.log("🔧 Debug - process.env.NEXT_PUBLIC_WS_URL:", process.env.NEXT_PUBLIC_WS_URL);
     }
 
     console.log(`🔗 WebSocket URL: ${wsUrl}`);
@@ -106,8 +106,8 @@ export default function AlertPage({
           });
         }
 
-        // Alert süresini belirle
-        const displayDuration = data.videoDuration || 5000;
+        // Alert süresini belirle (videoDuration saniye cinsinden geliyor)
+        const displayDuration = (data.videoDuration || 5) * 1000;
 
         console.log(`⏰ Alert will be visible for ${displayDuration}ms`);
 
