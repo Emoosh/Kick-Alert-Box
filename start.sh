@@ -26,7 +26,7 @@ echo "Worker PID: $WORKER_PID"
 # Function to handle shutdown
 cleanup() {
     echo "🛑 Shutting down services..."
-    kill $NEXTJS_PID $WS_PID $WORKER_PID 2>/dev/null
+    kill $NEXTJS_PID $WORKER_PID 2>/dev/null
     exit 0
 }
 
@@ -42,18 +42,13 @@ monitor_processes() {
             return 1
         fi
         
-        if ! kill -0 $WS_PID 2>/dev/null; then
-            echo "❌ WebSocket server (PID: $WS_PID) has stopped!"
-            return 1
-        fi
-        
         if ! kill -0 $WORKER_PID 2>/dev/null; then
             echo "❌ Background worker (PID: $WORKER_PID) has stopped!"
             return 1
         fi
         
         echo "✅ All services running ($(date))"
-        sleep 5
+        sleep 30
     done
 }
 
