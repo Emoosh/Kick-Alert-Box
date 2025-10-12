@@ -3,6 +3,7 @@
 ## 🚀 Railway'de 2 Servis Kurulumu
 
 ### Servis 1: Ana Uygulama (Next.js + Worker)
+
 1. Railway Dashboard'da mevcut servisi kullan
 2. `Dockerfile` kullanacak
 3. Port: 3000
@@ -19,6 +20,7 @@
    ```
 
 ### Servis 2: WebSocket Servisi
+
 1. Railway Dashboard'da "New Service" → "GitHub Repo"
 2. Aynı repo'yu seç
 3. Settings:
@@ -33,10 +35,12 @@
 5. Railway otomatik domain verecek: `kick-alert-box-websocket.up.railway.app`
 
 ### ✅ Avantajlar:
+
 - ✅ Port çakışması yok
 - ✅ Her servis bağımsız scale edilebilir
 - ✅ WebSocket servisi ayrı restart olabilir
 - ✅ Daha temiz mimari
 
 ### 📝 Not:
+
 Ana servisin `NEXT_PUBLIC_WS_URL` değişkenini WebSocket servisinin Railway URL'i ile güncelle!

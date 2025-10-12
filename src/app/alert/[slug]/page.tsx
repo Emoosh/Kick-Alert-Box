@@ -45,7 +45,9 @@ export default function AlertPage({
       wsUrl = `ws://localhost:4001?broadcasterId=${encodeURIComponent(slug)}`;
     } else {
       // Production (Railway) - Use environment variable for WebSocket service URL
-      const wsHost = process.env.NEXT_PUBLIC_WS_URL || "kick-alert-box-websocket.up.railway.app";
+      const wsHost =
+        process.env.NEXT_PUBLIC_WS_URL ||
+        "kick-alert-box-websocket.up.railway.app";
       wsUrl = `wss://${wsHost}?broadcasterId=${encodeURIComponent(slug)}`;
     }
 
