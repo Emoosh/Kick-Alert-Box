@@ -10,7 +10,8 @@ interface BroadcasterWebSocket extends WebSocket {
 
 function getWebSocketServer() {
   if (!wss) {
-    wss = new WebSocketServer({ port: 4001 });
+    const port = parseInt(process.env.PORT || "4001");
+    wss = new WebSocketServer({ port });
 
     wss.on("connection", (ws, req) => {
       const params = new URLSearchParams(req.url?.split("?")[1]);
@@ -72,7 +73,7 @@ function getWebSocketServer() {
       clearInterval(heartbeatInterval);
     });
 
-    console.log("🚀 WebSocket server started on port 4001");
+    console.log(`🚀 WebSocket server started on port ${port}`);
   }
   return wss;
 }
