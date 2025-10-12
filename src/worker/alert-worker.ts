@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 const activeWorkers = new Map<string, boolean>();
 
 // HTTP broadcast function to send alerts to WebSocket service
-async function broadcastAlert(alert: any) {
+async function broadcastAlert(alert: AlertQueueItem & { videoUrl?: string; videoName?: string }) {
   try {
     const wsUrl = process.env.WEBSOCKET_BROADCAST_URL || "http://localhost:4001/broadcast";
     const response = await fetch(wsUrl, {
