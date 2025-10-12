@@ -13,20 +13,28 @@ interface BroadcasterWebSocket extends WebSocket {
 function getWebSocketServer() {
   if (!wss) {
     const port = parseInt(process.env.PORT || "4001");
-    
+
     // Create HTTP server for Railway compatibility
     httpServer = createServer((req, res) => {
+      console.log(`📥 HTTP Request: ${req.method} ${req.url}`);
+      
       // Health check endpoint
-      if (req.url === '/health' || req.url === '/') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          status: 'ok', 
-          service: 'websocket',
-          connections: wss?.clients.size || 0 
-        }));
+      if (req.url === "/health" || req.url === "/") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            status: "ok",
+            service: "websocket",
+            connections: wss?.clients.size || 0,
+          })
+        );
+      } else if (req.url?.startsWith("/?broadcasterId=")) {
+        // WebSocket upgrade request - let WebSocket server handle it
+        res.writeHead(200);
+        res.end("WebSocket endpoint");
       } else {
         res.writeHead(404);
-        res.end();
+        res.end("Not found");
       }
     });
 
