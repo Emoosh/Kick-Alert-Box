@@ -1,0 +1,9 @@
+# railway.websocket.toml - WebSocket servisi için
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.websocket"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

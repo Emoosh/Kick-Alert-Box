@@ -15,17 +15,12 @@ echo "🎯 Starting Next.js server on port 3000..."
 node server.js &
 NEXTJS_PID=$!
 
-echo "🔌 Starting WebSocket server on port 4001..."
-/usr/local/bin/tsx ws-server.ts &
-WS_PID=$!
-
 echo "⚡ Starting background worker..."
 /usr/local/bin/tsx src/worker/alert-worker.ts &
 WORKER_PID=$!
 
 echo "✅ All services started successfully!"
 echo "Next.js PID: $NEXTJS_PID"
-echo "WebSocket PID: $WS_PID"
 echo "Worker PID: $WORKER_PID"
 
 # Function to handle shutdown
