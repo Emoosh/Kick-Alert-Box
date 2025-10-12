@@ -12,7 +12,10 @@ interface BroadcasterWebSocket extends WebSocket {
 
 function getWebSocketServer() {
   if (!wss) {
-    const port = parseInt(process.env.PORT || "4001");
+    // Use WEBSOCKET_PORT if available, otherwise default to 4001
+    // In main service: WEBSOCKET_PORT=4001
+    // In separate WebSocket service: PORT is used by Railway
+    const port = parseInt(process.env.WEBSOCKET_PORT || process.env.PORT || "4001");
 
     // Create HTTP server for Railway compatibility
     httpServer = createServer((req, res) => {
