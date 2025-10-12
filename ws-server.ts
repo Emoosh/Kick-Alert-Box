@@ -31,6 +31,35 @@ function getWebSocketServer() {
             connections: wss?.clients.size || 0,
           })
         );
+      } else if (req.url === "/broadcast" && req.method === "POST") {
+        // Broadcast endpoint for worker to send alerts
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk.toString();
+        });
+        req.on("end", () => {
+          try {
+            const alert = JSON.parse(body);
+            console.log(`📨 Received broadcast request for: ${alert.broadcasterId}`);
+            
+            // Send to all connected WebSocket clients matching broadcasterId
+            let sentCount = 0;
+            wss?.clients.forEach((client: any) => {
+              if (client.broadcasterId === alert.broadcasterId && client.readyState === 1) {
+                client.send(JSON.stringify(alert));
+                sentCount++;
+              }
+            });
+            
+            console.log(`📡 Broadcast to ${sentCount} clients`);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true, clients: sentCount }));
+          } catch (error) {
+            console.error("❌ Broadcast error:", error);
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+          }
+        });
       } else if (req.url?.startsWith("/?broadcasterId=")) {
         // WebSocket upgrade request - let WebSocket server handle it
         res.writeHead(200);

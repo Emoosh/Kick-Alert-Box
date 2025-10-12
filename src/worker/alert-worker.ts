@@ -1,12 +1,31 @@
-// src/worker/alert-worker.ts - broadcastAlert fonksiyonunu güncelle
+// src/worker/alert-worker.ts - Use HTTP to broadcast instead of direct import
 import { createRedisConnection, getRedisClient } from "../lib/redis/redis";
-import { broadcastAlert } from "../../ws-server";
 import { getRandomAlertVideo } from "../lib/services/video-service";
-import { PrismaClient } from "@prisma/client"; // ✅ Prisma client ekle
-import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHandlers"; // ✅ Yeni type import et
+import { PrismaClient } from "@prisma/client";
+import type { AlertQueueItem } from "../lib/webhook/webhook-handlers/webhookHandlers";
 
-const prisma = new PrismaClient(); // ✅ Prisma instance
+const prisma = new PrismaClient();
 const activeWorkers = new Map<string, boolean>();
+
+// HTTP broadcast function to send alerts to WebSocket service
+async function broadcastAlert(alert: any) {
+  try {
+    const wsUrl = process.env.WEBSOCKET_BROADCAST_URL || "http://localhost:4001/broadcast";
+    const response = await fetch(wsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(alert),
+    });
+    
+    if (!response.ok) {
+      console.error("❌ Failed to broadcast alert:", await response.text());
+    } else {
+      console.log("✅ Alert broadcasted successfully");
+    }
+  } catch (error) {
+    console.error("❌ Error broadcasting alert:", error);
+  }
+}
 
 // Alert'i işlerken video ekle
 async function processAlertWithVideo(alert: AlertQueueItem) {
