@@ -105,7 +105,7 @@ export default function AlertPage({
         }
 
         // Alert süresini belirle
-        const displayDuration = data.videoDuration || 5000;
+        const displayDuration = (data.videoDuration || 5) * 1000;
 
         console.log(`⏰ Alert will be visible for ${displayDuration}ms`);
 
