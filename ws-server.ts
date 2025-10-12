@@ -17,7 +17,7 @@ function getWebSocketServer() {
     // Create HTTP server for Railway compatibility
     httpServer = createServer((req, res) => {
       console.log(`📥 HTTP Request: ${req.method} ${req.url}`);
-      
+
       // Health check endpoint
       if (req.url === "/health" || req.url === "/") {
         res.writeHead(200, { "Content-Type": "application/json" });
